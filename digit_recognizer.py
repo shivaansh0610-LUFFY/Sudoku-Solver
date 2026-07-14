@@ -1,3 +1,6 @@
+import os
+import random
+import glob
 import cv2
 import numpy as np
 
@@ -79,3 +82,150 @@ def center_digit(binary_image, target_size=32):
     canvas[dy:dy+new_h, dx:dx+new_w] = resized_digit
     
     return canvas
+
+def generate_synthetic_dataset(output_dir="synthetic_digits", samples_per_digit=300):
+    """
+    Generates a synthetic dataset of digits 1-9 for training the digit classifier.
+    Applies random font choice (regular & bold), font size, rotation, offsets, contrast, and noise.
+    Also varies stroke weight (thickness) randomly (0-1px) to match bold print styles.
+    Then applies border clearing (20px), binarization, connected component cleaning, centering, and saves 32x32 images.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Common macOS font paths, including Helvetica, SFNS, and regular & bold variants
+    common_fonts = [
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/HelveticaNeue.ttc",
+        "/System/Library/Fonts/SFNS.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Georgia.ttf",
+        "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Courier New.ttf",
+        "/System/Library/Fonts/Supplemental/Courier New Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+        "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Verdana.ttf",
+        "/System/Library/Fonts/Supplemental/Verdana Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Trebuchet MS.ttf",
+        "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
+    ]
+
+    loaded_fonts = []
+    for path in common_fonts:
+        if os.path.exists(path):
+            loaded_fonts.append(path)
+
+    # Fallback to search any .ttf files
+    if not loaded_fonts:
+        import glob
+        ttf_files = glob.glob("/System/Library/Fonts/**/*.ttf", recursive=True)
+        if ttf_files:
+            loaded_fonts.extend(ttf_files[:8])
+
+    # Fallback to default
+    if not loaded_fonts:
+        print("Warning: No TrueType fonts found on the system. Falling back to default PIL font.")
+        loaded_fonts = ["default"]
+
+    print(f"Using fonts for generation: {loaded_fonts}")
+
+    for digit in range(1, 10):
+        digit_dir = os.path.join(output_dir, str(digit))
+        os.makedirs(digit_dir, exist_ok=True)
+
+        for n in range(samples_per_digit):
+            bg_color = random.randint(220, 255)
+            text_color = random.randint(0, 50)
+
+            # Create a 100x100 canvas (grayscale mode "L")
+            img = Image.new("L", (100, 100), bg_color)
+            draw = ImageDraw.Draw(img)
+
+            # Random font and size (60 to 85pt matches standard digit scales)
+            font_choice = random.choice(loaded_fonts)
+            font_size = random.randint(60, 85)
+
+            # Load font safely
+            if font_choice == "default":
+                try:
+                    font = ImageFont.load_default(size=font_size)
+                except TypeError:
+                    font = ImageFont.load_default()
+            else:
+                try:
+                    font = ImageFont.truetype(font_choice, font_size)
+                except Exception:
+                    try:
+                        font = ImageFont.load_default(size=font_size)
+                    except TypeError:
+                        font = ImageFont.load_default()
+
+            # Random translation/offset [-10, 10] (simulates boundary cropping)
+            dx = random.randint(-10, 10)
+            dy = random.randint(-10, 10)
+            cx = 50 + dx
+            cy = 50 + dy
+
+            # Random stroke thickness (0 to 1 pixels to prevent over-thickening blobs)
+            stroke_w = random.randint(0, 1)
+
+            # Draw the digit. If it is 1, randomly use alternate characters '|' or 'I'
+            char_to_draw = str(digit)
+            if digit == 1:
+                char_to_draw = random.choice(['1', 'I', '|'])
+
+            # Render digit
+            try:
+                draw.text((cx, cy), char_to_draw, fill=text_color, font=font, anchor="mm",
+                          stroke_width=stroke_w, stroke_fill=text_color)
+            except Exception:
+                try:
+                    bbox = font.getbbox(char_to_draw)
+                    w = bbox[2] - bbox[0]
+                    h = bbox[3] - bbox[1]
+                except AttributeError:
+                    w, h = draw.textsize(char_to_draw, font=font)
+                draw.text((cx - w / 2, cy - h / 2), char_to_draw, fill=text_color, font=font,
+                          stroke_width=stroke_w, stroke_fill=text_color)
+
+            # Random rotation
+            angle = random.uniform(-10.0, 10.0)
+            img = img.rotate(angle, resample=Image.BICUBIC, expand=False, fillcolor=bg_color)
+
+            # Random shear (affine transform)
+            shear_x = random.uniform(-0.15, 0.15)
+            shear_y = random.uniform(-0.05, 0.05)
+            try:
+                img = img.transform(img.size, Image.AFFINE, (1, shear_x, 0, shear_y, 1, 0),
+                                    resample=Image.BICUBIC, fillcolor=bg_color)
+            except Exception:
+                pass
+
+            # Gaussian noise
+            img_arr = np.array(img, dtype=np.float32)
+            noise_std = random.uniform(1.5, 3.5)
+            noise = np.random.normal(0, noise_std, img_arr.shape)
+            img_arr = np.clip(img_arr + noise, 0, 255).astype(np.uint8)
+            
+            # Apply border clearing (using border_width=20)
+            img_arr = clear_cell_borders(img_arr, border_width=20)
+            
+            # Binarize
+            _, img_arr = cv2.threshold(img_arr, 127, 255, cv2.THRESH_BINARY)
+            
+            # Keep largest connected component (ensures matching structure with inference)
+            img_arr = keep_largest_component(img_arr)
+            
+            # Crop to center 80% (pixels 10 to 90)
+            crop_margin = 10
+            img_cropped = img_arr[crop_margin:100-crop_margin, crop_margin:100-crop_margin]
+            
+            # Center the digit inside a 32x32 canvas
+            img_centered = center_digit(img_cropped, target_size=32)
+
+            # Save the preprocessed synthetic training image directly
+            save_path = os.path.join(digit_dir, f"img_{n}.png")
+            cv2.imwrite(save_path, img_centered)
