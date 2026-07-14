@@ -229,3 +229,93 @@ def generate_synthetic_dataset(output_dir="synthetic_digits", samples_per_digit=
             # Save the preprocessed synthetic training image directly
             save_path = os.path.join(digit_dir, f"img_{n}.png")
             cv2.imwrite(save_path, img_centered)
+
+def train_classifier():
+    """
+    Loads synthetic dataset, processes images to 32x32, trains a CNN in TF/Keras,
+    and saves the model to model/digit_classifier.h5.
+    """
+    import tensorflow as tf
+    from tensorflow.keras import layers, models
+
+    output_dir = "synthetic_digits"
+    if not os.path.exists(output_dir):
+        print(f"Error: Training dataset directory '{output_dir}' does not exist.")
+        print("Please run dataset generation first: python digit_recognizer.py --generate")
+        return
+
+    print("Loading synthetic dataset...")
+    images = []
+    labels = []
+
+    for digit in range(1, 10):
+        digit_dir = os.path.join(output_dir, str(digit))
+        search_path = os.path.join(digit_dir, "*.png")
+        files = glob.glob(search_path)
+        print(f"  Digit {digit}: found {len(files)} samples")
+        for img_path in files:
+            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            if img is not None:
+                # Resize to 32x32 (no-op since they are already 32x32, but keeps it robust)
+                img_resized = cv2.resize(img, (32, 32), interpolation=cv2.INTER_AREA)
+                images.append(img_resized)
+                # Label is digit - 1
+                labels.append(digit - 1)
+
+    if not images:
+        print("Error: No images loaded. Dataset might be empty.")
+        return
+
+    images = np.array(images, dtype=np.float32) / 255.0
+    images = np.expand_dims(images, axis=-1)
+    labels = np.array(labels, dtype=np.int32)
+
+    num_samples = len(images)
+    indices = np.arange(num_samples)
+    np.random.shuffle(indices)
+
+    images = images[indices]
+    labels = labels[indices]
+
+    split_idx = int(0.8 * num_samples)
+    x_train, x_val = images[:split_idx], images[split_idx:]
+    y_train, y_val = labels[:split_idx], labels[split_idx:]
+
+    print(f"Dataset split: {len(x_train)} train, {len(x_val)} validation.")
+
+    # CNN architecture with Dropout
+    model = models.Sequential([
+        layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 1)),
+        layers.MaxPooling2D((2, 2)),
+        layers.Dropout(0.25),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.MaxPooling2D((2, 2)),
+        layers.Dropout(0.25),
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(9, activation='softmax')
+    ])
+
+    model.compile(
+        optimizer='adam',
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
+    print("\nStarting CNN model training...")
+    history = model.fit(
+        x_train, y_train,
+        epochs=20,
+        batch_size=32,
+        validation_data=(x_val, y_val),
+        verbose=1
+    )
+
+    val_acc = history.history['val_accuracy'][-1]
+    print(f"\nTraining completed. Final validation accuracy: {val_acc:.4f}")
+
+    os.makedirs("model", exist_ok=True)
+    model_path = "model/digit_classifier.h5"
+    model.save(model_path)
+    print(f"Model saved to {model_path}")
