@@ -319,3 +319,133 @@ def train_classifier():
     model_path = "model/digit_classifier.h5"
     model.save(model_path)
     print(f"Model saved to {model_path}")
+
+def is_cell_blank(cell_image) -> bool:
+    """
+    Checks if a cell is blank by analyzing the center ~60% region of the image.
+    Uses pixel standard deviation and thresholding/ink ratio to determine if there is a digit.
+    """
+    # 1. Convert to grayscale if not already
+    if len(cell_image.shape) == 3:
+        gray = cv2.cvtColor(cell_image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = cell_image.copy()
+
+    # 2. Clear borders to erase outer grid lines
+    cleaned = clear_cell_borders(gray, border_width=20)
+
+    # 3. Crop to center ~60% of the cell
+    h, w = cleaned.shape[:2]
+    cy, cx = h // 2, w // 2
+    dy, dx = int(h * 0.3), int(w * 0.3)
+    cropped = cleaned[cy - dy : cy + dy, cx - dx : cx + dx]
+
+    # 4. Check uniformity using standard deviation.
+    std_dev = np.std(cropped)
+    if std_dev < 10.0:
+        return True
+
+    # 5. Threshold the cropped region and count non-zero (ink) pixels.
+    _, thresh = cv2.threshold(cropped, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    
+    ink_pixels = cv2.countNonZero(thresh)
+    total_pixels = cropped.size
+    ink_ratio = ink_pixels / total_pixels
+
+    # If ink pixel ratio is below 2%, return True (blank)
+    return ink_ratio < 0.02
+
+def predict_digit(cell_image, model) -> int:
+    """
+    Preprocesses the cell image to match the synthetic training dataset format.
+    Clears borders (20px), crops center 80%, binarizes using Otsu, cleans components, centers and resizes.
+    """
+    # 1. Convert to grayscale if not already
+    if len(cell_image.shape) == 3:
+        gray = cv2.cvtColor(cell_image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = cell_image.copy()
+
+    # 2. Clear borders to erase outer grid lines
+    cleaned = clear_cell_borders(gray, border_width=20)
+
+    # 3. Crop to center 80% of the cell
+    h, w = cleaned.shape[:2]
+    cy, cx = h // 2, w // 2
+    dy, dx = int(h * 0.4), int(w * 0.4)
+    cropped = cleaned[cy - dy : cy + dy, cx - dx : cx + dx]
+
+    # 4. Binarize using Otsu's thresholding to match binary synthetic training images
+    _, binarized = cv2.threshold(cropped, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # 5. Keep only the largest connected component (removes split serifs/dust/grid remnants)
+    binarized_cleaned = keep_largest_component(binarized)
+
+    # 6. Center the digit inside a 32x32 canvas
+    centered = center_digit(binarized_cleaned, target_size=32)
+
+    # 7. Normalize pixel values to [0, 1]
+    normalized = centered.astype(np.float32) / 255.0
+
+    # 8. Model prediction
+    input_tensor = np.expand_dims(normalized, axis=(0, -1))
+    prediction = model.predict(input_tensor, verbose=0)
+    pred_class = np.argmax(prediction[0])
+    
+    # Class 0-8 maps to digit 1-9
+    return int(pred_class + 1)
+
+def build_grid(cells_dir="output/cells", model_path="model/digit_classifier.h5"):
+    """
+    Loads the model and iterates through the 81 cell images.
+    Returns a 9x9 list of lists representing the Sudoku board.
+    """
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"Trained model not found at '{model_path}'. "
+            "Please generate the dataset and train the model first by running:\n"
+            "  python digit_recognizer.py --generate\n"
+            "  python digit_recognizer.py --train"
+        )
+
+    from tensorflow.keras.models import load_model
+    model = load_model(model_path)
+
+    grid = []
+    for r in range(9):
+        row_list = []
+        for c in range(9):
+            cell_filename = os.path.join(cells_dir, f"cell_r{r}_c{c}.jpg")
+            if not os.path.exists(cell_filename):
+                raise FileNotFoundError(f"Cell image not found: {cell_filename}. Make sure to run cell extraction first.")
+            
+            cell_image = cv2.imread(cell_filename)
+            if cell_image is None:
+                raise ValueError(f"Could not read cell image at {cell_filename}")
+            
+            if is_cell_blank(cell_image):
+                row_list.append(0)
+            else:
+                digit = predict_digit(cell_image, model)
+                row_list.append(digit)
+        grid.append(row_list)
+        
+    return grid
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Sudoku Digit Recognizer (Day 2)")
+    parser.add_argument("--generate", action="store_true", help="Generate synthetic training dataset")
+    parser.add_argument("--train", action="store_true", help="Train the CNN model using synthetic dataset")
+    
+    args = parser.parse_args()
+    
+    if args.generate:
+        print("Generating synthetic dataset...")
+        generate_synthetic_dataset()
+        print("Dataset generation complete!")
+    elif args.train:
+        print("Training classifier...")
+        train_classifier()
+    else:
+        parser.print_help()
