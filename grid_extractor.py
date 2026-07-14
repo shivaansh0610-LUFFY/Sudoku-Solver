@@ -75,33 +75,40 @@ def extract_cells(image_path):
     
     # 3. Contour detection
     try:
-        # Find external contours
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Find all contours including internal ones
+        contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     except Exception as e:
         raise RuntimeError(f"Failed to find contours in preprocessed image: {str(e)}")
         
     grid_contour = None
-    max_area = 0
-    
-    # Define a minimum area threshold for the sudoku grid (2.5% of the total resized image area)
     min_area_threshold = 0.025 * (img.shape[0] * img.shape[1])
     
+    candidates = []
     for c in contours:
         area = cv2.contourArea(c)
         if area < min_area_threshold:
             continue
             
-        # Calculate contour perimeter
         perimeter = cv2.arcLength(c, True)
-        
-        # Approximate contour with 2% epsilon
         approx = cv2.approxPolyDP(c, 0.02 * perimeter, True)
         
-        # Filter for 4-sided contours
         if len(approx) == 4:
-            if area > max_area:
-                max_area = area
+            candidates.append((area, approx))
+            
+    # Sort candidates by area descending
+    candidates = sorted(candidates, key=lambda x: x[0], reverse=True)
+    
+    if candidates:
+        # We start with the largest 4-sided contour (which could be the paper boundary)
+        best_contour = candidates[0][1]
+        best_area = candidates[0][0]
+        
+        # We search from smallest to largest to find the innermost nested contour
+        # that is at least 60% of the largest one (likely the actual black grid frame).
+        for area, approx in reversed(candidates):
+            if area >= 0.6 * best_area:
                 grid_contour = approx
+                break
                 
     # Draw detected contour (or original if none)
     img_contour = img.copy()
@@ -111,7 +118,7 @@ def extract_cells(image_path):
     
     if grid_contour is None:
         raise ValueError(
-            f"No sudoku grid detected. Could not find a 4-sided external contour with area >= {min_area_threshold:.1f} pixels."
+            f"No sudoku grid detected. Could not find a 4-sided contour with area >= {min_area_threshold:.1f} pixels."
         )
         
     # 4. Corner ordering
