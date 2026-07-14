@@ -1,63 +1,124 @@
-# Sudoku Grid Extractor
+# Sudoku Solver
 
-A computer vision pipeline that takes a photo of a Sudoku puzzle and extracts a clean, deskewed grid — ready for digit recognition and solving.
+A computer vision and deep learning pipeline that takes a photo or screenshot of a Sudoku puzzle, extracts the grid, recognizes the printed digits, and solves the puzzle. 
 
-This is Phase 1 of a full Sudoku Solver: photo in → 81 individual cell images out.
+This project is split into phases:
+- **Phase 1 (Day 1)**: Grid extraction and cell segmentation using OpenCV.
+- **Phase 2 (Day 2)**: Digit recognition using a custom-trained Convolutional Neural Network (CNN) in TensorFlow/Keras.
+- **Phase 3 (Upcoming)**: Backtracking Sudoku solver and solution rendering.
+
+---
 
 ## Demo
 
-| Input | Threshold | Detected Grid | Warped Output |
+| Input Photo | Warped Grid | Preprocessed Cells | Reconstructed Grid |
 |---|---|---|---|
-| Raw photo | `output/01_threshold.jpg` | `output/02_contour.jpg` | `output/03_warped.jpg` |
+| Raw photo / Screenshot | `output/03_warped.jpg` | Aligned and binarized digits | Console text output |
 
-The pipeline locates the puzzle boundary in any reasonably clean photo, corrects for camera angle/perspective, and slices the result into a perfect 9×9 grid of cells.
+Example output printed to console:
+```text
+8 . . | 4 . 6 | . . 7
+. . . | . . . | 4 . .
+. 1 . | . . . | 6 5 .
+---------------------
+5 . 9 | . 3 . | 7 8 .
+. . . | . 7 . | . . .
+. 4 8 | . 2 . | 1 . 3
+---------------------
+. 5 2 | . . . | . 9 .
+. . 1 | . . . | . . .
+3 . . | 9 . 2 | . . 5
+```
 
-## How it works
+---
 
-1. **Preprocess** — grayscale, Gaussian blur, and adaptive thresholding to handle uneven lighting from a phone camera. A morphological dilation step closes small gaps in the grid lines that adaptive thresholding tends to leave, which otherwise causes contour detection to miss the boundary.
-2. **Detect the grid** — finds the largest 4-sided external contour in the frame, which is assumed to be the puzzle boundary.
-3. **Order the corners** — sorts the 4 detected points into a consistent top-left → top-right → bottom-right → bottom-left order using coordinate sum/difference, so the perspective warp doesn't invert or mirror the image.
-4. **Warp** — applies a perspective transform to map the (possibly skewed) grid onto a flat 900×900px square.
-5. **Split** — slices the warped square into 81 evenly-spaced 100×100px cell images, saved individually for downstream digit recognition.
+## How It Works
 
-## Usage
+### 1. Grid Extraction (OpenCV)
+- **Preprocess** — Grayscale conversion, Gaussian blurring, and adaptive thresholding to handle uneven lighting. Morphological dilation closes small gaps in black grid lines.
+- **Warp** — Locates the nested black grid contour, orders the corners (Top-Left, Top-Right, Bottom-Right, Bottom-Left), and applies a perspective transform to map it to a flat `900x900px` square.
+- **Segment** — Slices the warped image into 81 evenly-spaced `100x100px` individual cell images.
 
+### 2. Digit Recognition (TensorFlow/Keras)
+- **Binarization & Cleaning** — Clears the outer 20-pixel border of each cell to erase remaining grid lines. Keeps only the largest connected component (foreground stroke) to discard split serifs or small dust particles.
+- **Centering** — Crops the digit to its bounding box, rescales it to fit within a `24x24px` box, and centers it on a `32x32px` white canvas. This makes the recognition translation- and scale-invariant.
+- **Blank Cell Detection** — Analyzes the center 60% of each cleared cell using standard deviation and ink pixel density (< 2.0% area is classified as blank).
+- **CNN Classifier** — A custom CNN model (`Conv2D -> MaxPool -> Dropout -> Conv2D -> MaxPool -> Dropout -> Dense -> Dropout -> Dense`) trained on a diverse synthetic dataset of printed fonts.
+
+### 3. Synthetic Dataset Generator
+Since handwritten MNIST digits look significantly different from printed puzzle fonts, the pipeline includes a synthetic training generator that:
+- Renders digits 1-9 onto blank canvases using common macOS system fonts (Arial, Helvetica, Verdana, Georgia, Times New Roman, Courier New, Trebuchet MS) and modern sans-serifs (Helvetica Neue, SFNS).
+- Applies random scaling (`60-85`pt), rotation (`-10` to `10` degrees), shearing, random translation, and noise.
+- Translates digits up to `[-10, 10]`px to naturally simulate boundary cropping caused by cell borders.
+- Randomly renders the digit `1` as `'1'`, `'I'`, or `'|'` to ensure robustness for fonts representing it as a simple vertical line.
+
+---
+
+## Installation & Usage
+
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
-python main.py path/to/your/sudoku_photo.jpg
 ```
 
-Output is written to:
+### 2. Generate Dataset & Train Model
+To generate the training dataset (saved to `synthetic_digits/`) and train the CNN classifier (saved to `model/digit_classifier.h5`):
+```bash
+# Generate the synthetic digits
+python digit_recognizer.py --generate
+
+# Train the CNN model
+python digit_recognizer.py --train
 ```
-output/
-├── 01_threshold.jpg      # preprocessed binary image
-├── 02_contour.jpg        # detected grid boundary overlaid on original
-├── 03_warped.jpg         # deskewed, top-down 900x900 grid
-└── cells/
-    ├── cell_r0_c0.jpg
-    ├── cell_r0_c1.jpg
-    └── ...               # 81 cells total, row-major order
+
+### 3. Run the Pipeline
+Run the end-to-end extractor and digit recognition pipeline on any Sudoku puzzle photo or screenshot:
+```bash
+python main.py path/to/sudoku_image.jpg
 ```
+
+---
+
+## Project Structure
+
+```text
+Sudoku Solver/
+├── main.py                  # Main CLI entrypoint
+├── grid_extractor.py        # OpenCV grid warping and cell segmenter
+├── digit_recognizer.py      # Synthetic dataset generator, CNN model, and OCR pipeline
+├── requirements.txt         # Project dependencies
+├── .gitignore               # Ignored caches, datasets, and output images
+├── test_images/             # Test photos and screenshots
+├── model/
+│   └── digit_classifier.h5  # Trained Keras CNN model weights
+└── output/                  # Generated intermediate images
+    ├── 01_threshold.jpg     # Binary thresholded image
+    ├── 02_contour.jpg       # Detected grid outline
+    ├── 03_warped.jpg        # Deskewed 900x900 grid
+    └── cells/               # Folder containing 81 cell images
+```
+
+---
 
 ## Requirements
 
 - Python 3.9+
-- `opencv-python`
-- `numpy`
+- OpenCV (`opencv-python`)
+- NumPy
+- TensorFlow
+- Pillow (PIL)
 
-## Known limitations
-
-- Assumes the Sudoku grid is the largest 4-sided object in the frame — a cluttered background (hands, other rectangular objects) may cause misdetection.
-- Tuned for printed puzzles; handwritten/pen-filled grids are not yet supported.
-- Detection can fail on photos with heavy glare or very low contrast between the grid lines and background.
+---
 
 ## Roadmap
 
 - [x] Grid detection and perspective correction
-- [ ] Digit recognition (blank-cell detection + CNN classifier on printed digits)
-- [ ] Backtracking Sudoku solver
+- [x] Digit recognition (blank-cell detection + CNN classifier on printed digits)
+- [ ] Backtracking Sudoku solver (Phase 3)
 - [ ] Solution overlay back onto the original photo
 - [ ] Simple web demo (Streamlit)
+
+---
 
 ## License
 
