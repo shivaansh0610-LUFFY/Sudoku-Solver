@@ -1,22 +1,10 @@
 import sys
 import os
+import copy
+import time
 from grid_extractor import extract_cells
 from digit_recognizer import build_grid
-
-def print_sudoku_grid(grid):
-    """Prints a 9x9 Sudoku grid in a readable format with 3x3 block separators."""
-    print("\nDetected Sudoku Grid:")
-    for r in range(9):
-        if r % 3 == 0 and r != 0:
-            print("-" * 21)
-        row_str = ""
-        for c in range(9):
-            if c % 3 == 0 and c != 0:
-                row_str += "| "
-            val = grid[r][c]
-            row_str += f"{val if val != 0 else '.'} "
-        print(row_str.strip())
-    print()
+from solver import is_valid_puzzle, solve, pretty_print_grid
 
 def main():
     # Verify input arguments
@@ -51,7 +39,27 @@ def main():
         grid = build_grid()
         
         # Print grid
-        print_sudoku_grid(grid)
+        print("\nDetected Sudoku Grid:")
+        pretty_print_grid(grid)
+        print()
+        
+        # Check validity
+        if not is_valid_puzzle(grid):
+            print("Recognized grid is contradictory — check digit recognition output above for misread cells")
+            sys.exit(1)
+            
+        # Solve a deep copy of the grid
+        grid_copy = copy.deepcopy(grid)
+        start_time = time.time()
+        solved = solve(grid_copy)
+        end_time = time.time()
+        
+        if solved:
+            print("Solved Sudoku Grid:")
+            pretty_print_grid(grid_copy)
+            print(f"\nSolving took {(end_time - start_time) * 1000:.2f} ms")
+        else:
+            print("No solution exists for this Sudoku grid.")
         
     except FileNotFoundError as fnfe:
         print(f"\nConfiguration Error: {fnfe}")
