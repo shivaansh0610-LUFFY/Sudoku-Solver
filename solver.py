@@ -1,3 +1,6 @@
+import copy
+import time
+
 def is_valid(grid, row, col, num) -> bool:
     """
     Checks if placing `num` at grid[row][col] is valid according to Sudoku rules.
@@ -91,3 +94,60 @@ def pretty_print_grid(grid) -> None:
             val = grid[r][c]
             row_str += f"{val if val != 0 else '.'} "
         print(row_str.strip())
+
+if __name__ == "__main__":
+    print("=== Sudoku Solver Standalone Test ===")
+    
+    # A standard valid unsolved Sudoku puzzle
+    valid_puzzle = [
+        [5, 3, 0, 0, 7, 0, 0, 0, 0],
+        [6, 0, 0, 1, 9, 5, 0, 0, 0],
+        [0, 9, 8, 0, 0, 0, 0, 6, 0],
+        [8, 0, 0, 0, 6, 0, 0, 0, 3],
+        [4, 0, 0, 8, 0, 3, 0, 0, 1],
+        [7, 0, 0, 0, 2, 0, 0, 0, 6],
+        [0, 6, 0, 0, 0, 0, 2, 8, 0],
+        [0, 0, 0, 4, 1, 9, 0, 0, 5],
+        [0, 0, 0, 0, 8, 0, 0, 7, 9]
+    ]
+    
+    print("\nOriginal valid puzzle:")
+    pretty_print_grid(valid_puzzle)
+    
+    # Validate the board sanity
+    is_valid_initially = is_valid_puzzle(valid_puzzle)
+    print(f"\nInitial validity check passed: {is_valid_initially}")
+    assert is_valid_initially, "Should be valid!"
+    
+    # Solve the puzzle and measure time
+    grid_copy = copy.deepcopy(valid_puzzle)
+    start_time = time.time()
+    success = solve(grid_copy)
+    end_time = time.time()
+    
+    if success:
+        print(f"\nPuzzle solved successfully in {(end_time - start_time) * 1000:.2f} ms!")
+        pretty_print_grid(grid_copy)
+    else:
+        print("\nFailed to solve puzzle.")
+        
+    # An invalid puzzle with direct conflict (duplicate 5 in row 0)
+    invalid_puzzle = [
+        [5, 3, 5, 0, 7, 0, 0, 0, 0],
+        [6, 0, 0, 1, 9, 5, 0, 0, 0],
+        [0, 9, 8, 0, 0, 0, 0, 6, 0],
+        [8, 0, 0, 0, 6, 0, 0, 0, 3],
+        [4, 0, 0, 8, 0, 3, 0, 0, 1],
+        [7, 0, 0, 0, 2, 0, 0, 0, 6],
+        [0, 6, 0, 0, 0, 0, 2, 8, 0],
+        [0, 0, 0, 4, 1, 9, 0, 0, 5],
+        [0, 0, 0, 0, 8, 0, 0, 7, 9]
+    ]
+    
+    print("\nOriginal invalid puzzle:")
+    pretty_print_grid(invalid_puzzle)
+    
+    is_valid_invalid = is_valid_puzzle(invalid_puzzle)
+    print(f"\nInvalid puzzle validity check (should be False): {is_valid_invalid}")
+    assert not is_valid_invalid, "Should be invalid due to duplicate 5 in the first row!"
+    print("\nAll standalone tests passed!")
