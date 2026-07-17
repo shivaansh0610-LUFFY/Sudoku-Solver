@@ -56,3 +56,38 @@ def solve(grid) -> bool:
             grid[row][col] = 0
             
     return False
+
+def is_valid_puzzle(grid) -> bool:
+    """
+    Performs a sanity check on the pre-filled cells of the Sudoku puzzle.
+    Verifies that no already-filled cell conflicts with row, column, or 3x3 box rules.
+    Returns True if the puzzle has no contradictions, False otherwise.
+    
+    Avoids the self-comparison bug by temporarily clearing each cell while checking.
+    """
+    for r in range(9):
+        for c in range(9):
+            num = grid[r][c]
+            if num != 0:
+                # Temporarily clear the cell to avoid comparing it to itself
+                grid[r][c] = 0
+                valid = is_valid(grid, r, c, num)
+                grid[r][c] = num # Restore the cell
+                if not valid:
+                    return False
+    return True
+
+def pretty_print_grid(grid) -> None:
+    """
+    Prints a 9x9 Sudoku grid in a readable format with 3x3 block separators.
+    """
+    for r in range(9):
+        if r % 3 == 0 and r != 0:
+            print("-" * 21)
+        row_str = ""
+        for c in range(9):
+            if c % 3 == 0 and c != 0:
+                row_str += "| "
+            val = grid[r][c]
+            row_str += f"{val if val != 0 else '.'} "
+        print(row_str.strip())
