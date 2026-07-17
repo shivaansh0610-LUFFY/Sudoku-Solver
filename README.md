@@ -5,7 +5,8 @@ A computer vision and deep learning pipeline that takes a photo or screenshot of
 This project is split into phases:
 - **Phase 1 (Day 1)**: Grid extraction and cell segmentation using OpenCV.
 - **Phase 2 (Day 2)**: Digit recognition using a custom-trained Convolutional Neural Network (CNN) in TensorFlow/Keras.
-- **Phase 3 (Upcoming)**: Backtracking Sudoku solver and solution rendering.
+- **Phase 3 (Day 3)**: Backtracking Sudoku solver and validation.
+- **Phase 4 (Upcoming)**: Solution rendering/overlay.
 
 ---
 
@@ -44,6 +45,11 @@ Example output printed to console:
 - **Centering** — Crops the digit to its bounding box, rescales it to fit within a `24x24px` box, and centers it on a `32x32px` white canvas. This makes the recognition translation- and scale-invariant.
 - **Blank Cell Detection** — Analyzes the center 60% of each cleared cell using standard deviation and ink pixel density (< 2.0% area is classified as blank).
 - **CNN Classifier** — A custom CNN model (`Conv2D -> MaxPool -> Dropout -> Conv2D -> MaxPool -> Dropout -> Dense -> Dropout -> Dense`) trained on a diverse synthetic dataset of printed fonts.
+
+### 3. Backtracking Solver
+- **Input Validation** — Sanitizes the input grid by verifying that already-filled cells do not violate row, column, or 3x3 box rules. This prevents wasting time on solving boards containing digit-recognition errors (e.g. duplicates).
+- **Self-Comparison Safeguard** — When validating, temporarily clears the target cell to `0` to prevent it from matching itself as a duplicate row/column/box digit.
+- **Backtracking Algorithm** — A classic recursive depth-first backtracking algorithm that finds the first empty cell in row-major order, places valid candidate digits 1-9, and backtracks if a path is invalid.
 
 ### 3. Synthetic Dataset Generator
 Since handwritten MNIST digits look significantly different from printed puzzle fonts, the pipeline includes a synthetic training generator that:
@@ -84,6 +90,7 @@ python main.py path/to/sudoku_image.jpg
 ```text
 Sudoku Solver/
 ├── main.py                  # Main CLI entrypoint
+├── solver.py                # Backtracking solver, validation, and pretty printing
 ├── grid_extractor.py        # OpenCV grid warping and cell segmenter
 ├── digit_recognizer.py      # Synthetic dataset generator, CNN model, and OCR pipeline
 ├── requirements.txt         # Project dependencies
@@ -114,7 +121,7 @@ Sudoku Solver/
 
 - [x] Grid detection and perspective correction
 - [x] Digit recognition (blank-cell detection + CNN classifier on printed digits)
-- [ ] Backtracking Sudoku solver (Phase 3)
+- [x] Backtracking Sudoku solver (Phase 3)
 - [ ] Solution overlay back onto the original photo
 - [ ] Simple web demo (Streamlit)
 
