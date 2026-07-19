@@ -23,9 +23,53 @@ st.markdown("""
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
+    /* Entrance animations keyframes */
+    @keyframes slideInRight {
+        from { transform: translateX(120px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideInLeft {
+        from { transform: translateX(-120px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Animation class assignments with braking easing curve */
+    .header-bar {
+        animation: slideInRight 0.7s cubic-bezier(0.15, 0.85, 0.35, 1) forwards;
+    }
+    [data-testid="column"]:nth-of-type(1) {
+        animation: slideInLeft 0.7s cubic-bezier(0.15, 0.85, 0.35, 1) 0.30s forwards;
+        opacity: 0;
+    }
+    [data-testid="column"]:nth-of-type(2) {
+        animation: slideInLeft 0.7s cubic-bezier(0.15, 0.85, 0.35, 1) 0.45s forwards;
+        opacity: 0;
+    }
+
     /* Global style overrides */
     html, body, [class*="css"], .stMarkdown {
         font-family: 'Space Grotesk', sans-serif !important;
+    }
+    
+    /* Subtle background grid-line watermark */
+    .stApp {
+        background-color: #FAFAF8 !important;
+        background-image: 
+            linear-gradient(135deg, rgba(29, 158, 117, 0.02) 0%, rgba(24, 95, 165, 0.02) 100%),
+            linear-gradient(to right, rgba(17, 17, 17, 0.04) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(17, 17, 17, 0.04) 1px, transparent 1px) !important;
+        background-size: auto, 40px 40px, 40px 40px !important;
+        background-attachment: fixed !important;
+    }
+    
+    /* Constrain and center main block container */
+    [data-testid="stAppViewBlockContainer"], .block-container {
+        max-width: 1000px !important;
+        margin: 0 auto !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
     }
     
     /* Monospace elements */
@@ -58,6 +102,28 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Script to inject styles to prevent animation replay on reruns
+st.html("""
+<script>
+    (function() {
+        const targetWindow = window.parent || window;
+        if (targetWindow.sessionStorage.getItem('sudoku_animated') === 'true') {
+            const style = targetWindow.document.createElement('style');
+            style.innerHTML = `
+                .header-bar, [data-testid="column"]:nth-of-type(1), [data-testid="column"]:nth-of-type(2) {
+                    animation: none !important;
+                    opacity: 1 !important;
+                    transform: none !important;
+                }
+            `;
+            targetWindow.document.head.appendChild(style);
+        } else {
+            targetWindow.sessionStorage.setItem('sudoku_animated', 'true');
+        }
+    })();
+</script>
+""", unsafe_allow_javascript=True)
+
 def render_status(placeholder, step_num, step_name, state):
     """
     Renders a engineering-style checklist item for pipeline progress.
@@ -89,10 +155,11 @@ def render_status(placeholder, step_num, step_name, state):
     </div>
     """, unsafe_allow_html=True)
 
-def render_animated_grid(original_grid, solved_grid):
+def render_animated_grid(original_grid, solved_grid, confidence_grid=None, show_heatmap=False):
     """
     Renders a 9x9 Sudoku grid using HTML/CSS inside an iframe component.
     Solved cells are revealed in a diagonal wave animation.
+    Optionally tints original clue backgrounds based on prediction confidence scores.
     """
     html_content = f"""
     <!DOCTYPE html>
@@ -170,7 +237,18 @@ def render_animated_grid(original_grid, solved_grid):
             
             cell_classes = f"cell cell-row-{r} cell-col-{c}"
             if orig_val != 0:
-                html_content += f'<div class="{cell_classes} original">{orig_val}</div>\n'
+                bg_color = "transparent"
+                if show_heatmap and confidence_grid is not None:
+                    conf = confidence_grid[r][c]
+                    if conf < 0.75:
+                        bg_color = "rgba(217, 83, 79, 0.22)"  # Low confidence - warm warning red
+                    elif conf < 0.90:
+                        bg_color = "rgba(217, 119, 6, 0.12)"  # Medium confidence - warm orange
+                    else:
+                        bg_color = "rgba(29, 158, 117, 0.08)"  # High confidence - very faint green
+                
+                style_str = f'style="background-color: {bg_color};"' if bg_color != "transparent" else ""
+                html_content += f'<div class="{cell_classes} original" {style_str}>{orig_val}</div>\n'
             else:
                 diag = r + c
                 html_content += f'<div class="{cell_classes} solved" data-diag="{diag}">{solved_val}</div>\n'
@@ -191,7 +269,7 @@ def render_animated_grid(original_grid, solved_grid):
     </body>
     </html>
     """
-    components.html(html_content, height=380, width=380)
+    st.iframe(html_content, height=380)
 
 def generate_confidence_table(grid, conf_grid):
     """
@@ -239,7 +317,8 @@ def generate_confidence_table(grid, conf_grid):
 
 def render_stats_bar(digits_count, backtracks, solve_time_ms):
     """
-    Renders a 4-column metric row styled to match the mono/thin-border engineering aesthetic.
+    Renders a 4-column metric row styled to match the mono/thin-border engineering aesthetic,
+    plus a difficulty estimator label.
     """
     col1, col2, col3, col4 = st.columns(4)
     
@@ -256,6 +335,22 @@ def render_stats_bar(digits_count, backtracks, solve_time_ms):
     render_stat(col3, str(backtracks), "backtracks")
     render_stat(col4, f"{solve_time_ms:.1f}ms", "solve time")
 
+    # Difficulty estimate calculation based on clues and solver search depth
+    if backtracks > 10000:
+        difficulty = "Extreme"
+    elif backtracks > 2000 or digits_count < 22:
+        difficulty = "Hard"
+    elif backtracks > 100 or digits_count < 28:
+        difficulty = "Medium"
+    else:
+        difficulty = "Easy"
+
+    st.markdown(f"""
+    <div style="font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; color: #333333; margin-top: 0.8rem; padding: 0.4rem 0.6rem; border-left: 2px solid #1D9E75; background-color: #F0F9F6; border-radius: 0 2px 2px 0;">
+        <strong>Difficulty Estimate:</strong> {difficulty} &mdash; {digits_count} clues, {backtracks:,} backtracks
+    </div>
+    """, unsafe_allow_html=True)
+
 # 1. Header Bar
 st.markdown("""
 <div class="header-bar">
@@ -264,19 +359,51 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# 2. Landing Hero Section
+st.markdown("""
+<div style="margin-bottom: 2rem;">
+    <p style="font-family: 'Space Grotesk', sans-serif; font-size: 1.05rem; color: #333333; line-height: 1.5; margin: 0 0 0.5rem 0;">
+        Photo in, solved grid out. This pipeline extracts the board using OpenCV perspective warps, recognizes cells with a custom CNN classifier, and solves the puzzle using a backtracking algorithm.
+    </p>
+    <p style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: #666666; margin: 0; letter-spacing: 0.05em;">
+        OPENCV &middot; TENSORFLOW/KERAS &middot; BACKTRACKING &middot; STREAMLIT
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
 # Initialize Session State
 if "current_file" not in st.session_state:
     st.session_state.current_file = None
 if "pipeline_results" not in st.session_state:
     st.session_state.pipeline_results = None
+if "selected_example" not in st.session_state:
+    st.session_state.selected_example = None
+
+# Example selection row
+st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.9rem; font-weight: 500; margin-bottom: 0.4rem;'>Try a sample image:</p>", unsafe_allow_html=True)
+col_ex1, col_ex2, col_ex3 = st.columns(3)
+if col_ex1.button("Standard (30 clues)", width="stretch"):
+    st.session_state.selected_example = "test_images/Screenshot 2026-07-14 at 3.40.04 PM.png"
+    st.session_state.current_file = "Screenshot 2026-07-14 at 3.40.04 PM.png"
+    st.session_state.pipeline_results = None
+if col_ex2.button("Hard (17 clues)", width="stretch"):
+    st.session_state.selected_example = "test_images/sample_hard.jpg"
+    st.session_state.current_file = "sample_hard.jpg"
+    st.session_state.pipeline_results = None
+if col_ex3.button("Empty Grid (0 clues)", width="stretch"):
+    st.session_state.selected_example = "test_images/sample.jpg"
+    st.session_state.current_file = "sample.jpg"
+    st.session_state.pipeline_results = None
 
 # File uploader
 uploaded_file = st.file_uploader("Upload a Sudoku Image", type=["jpg", "jpeg", "png"])
 
+image_path_to_use = None
 if uploaded_file is not None:
     # Clear cache if a new file is uploaded
     if st.session_state.current_file != uploaded_file.name:
         st.session_state.current_file = uploaded_file.name
+        st.session_state.selected_example = None
         st.session_state.pipeline_results = None
         
     temp_path = "temp_input.jpg"
@@ -284,34 +411,43 @@ if uploaded_file is not None:
         f.write(uploaded_file.getbuffer())
         
     original_img = cv2.imread(temp_path)
-    if original_img is not None:
-        # Columns layout
-        col_left, col_right = st.columns([1.3, 1])
+    image_path_to_use = temp_path
+elif st.session_state.selected_example is not None:
+    original_img = cv2.imread(st.session_state.selected_example)
+    image_path_to_use = st.session_state.selected_example
+else:
+    original_img = None
+
+if original_img is not None:
+    # Columns layout
+    col_left, col_right = st.columns([1.3, 1])
+    
+    with col_left:
+        st.markdown("<h3 style='margin-top:0;'>Solver Playback</h3>", unsafe_allow_html=True)
+        show_heatmap = False
+        if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
+            show_heatmap = st.toggle("Show confidence heatmap", value=False)
         
-        with col_left:
-            st.markdown("<h3 style='margin-top:0;'>Solver Playback</h3>", unsafe_allow_html=True)
-            # Solved animated grid placeholder, populated below
+    with col_right:
+        st.markdown("<h3 style='margin-top:0;'>Pipeline Status</h3>", unsafe_allow_html=True)
+        status_p1 = st.empty()
+        status_p2 = st.empty()
+        status_p3 = st.empty()
+        status_p4 = st.empty()
+        
+        # If not in cache, run the pipeline step-by-step
+        if st.session_state.pipeline_results is None:
+            render_status(status_p1, "01", "grid detect", "pending")
+            render_status(status_p2, "02", "digit recognition", "pending")
+            render_status(status_p3, "03", "solve", "pending")
+            render_status(status_p4, "04", "overlay", "pending")
             
-        with col_right:
-            st.markdown("<h3 style='margin-top:0;'>Pipeline Status</h3>", unsafe_allow_html=True)
-            status_p1 = st.empty()
-            status_p2 = st.empty()
-            status_p3 = st.empty()
-            status_p4 = st.empty()
-            
-            # If not in cache, run the pipeline step-by-step
-            if st.session_state.pipeline_results is None:
-                render_status(status_p1, "01", "grid detect", "pending")
-                render_status(status_p2, "02", "digit recognition", "pending")
-                render_status(status_p3, "03", "solve", "pending")
-                render_status(status_p4, "04", "overlay", "pending")
-                
-                try:
-                    # 1. Grid detection
-                    render_status(status_p1, "01", "grid detect", "running")
-                    time.sleep(0.2)
-                    cells = extract_cells(temp_path)
-                    render_status(status_p1, "01", "grid detect", "done")
+            try:
+                # 1. Grid detection
+                render_status(status_p1, "01", "grid detect", "running")
+                time.sleep(0.2)
+                cells = extract_cells(image_path_to_use)
+                render_status(status_p1, "01", "grid detect", "done")
                     
                     # 2. Digit recognition
                     render_status(status_p2, "02", "digit recognition", "running")
@@ -391,7 +527,7 @@ if uploaded_file is not None:
                 confidence_grid = res["confidence_grid"]
                 
                 st.markdown("<h3>Intermediate Outputs</h3>", unsafe_allow_html=True)
-                st.image("output/02_contour.jpg", caption="Grid detected", use_container_width=True)
+                st.image("output/02_contour.jpg", caption="Grid detected", width="stretch")
                 
                 # Digit recognition table / pretty print
                 st.markdown("<h3>Recognized Digits</h3>", unsafe_allow_html=True)
@@ -425,12 +561,45 @@ if uploaded_file is not None:
             with col_left:
                 res = st.session_state.pipeline_results
                 # Playback animation
-                render_animated_grid(res["grid"], res["solved_grid"])
+                render_animated_grid(res["grid"], res["solved_grid"], res.get("confidence_grid"), show_heatmap)
                 
                 st.markdown("<h3>Solved on Original Photo</h3>", unsafe_allow_html=True)
                 st.caption("Final solution warped back to original photo perspective")
                 if os.path.exists("output/04_solved_overlay.jpg"):
-                    st.image("output/04_solved_overlay.jpg", caption="Solved!", use_container_width=True)
+                    st.image("output/04_solved_overlay.jpg", caption="Solved!", width="stretch")
         else:
             with col_left:
                 st.info("Upload an image to start pipeline solver playback.")
+
+# 3. How Does This Work Expander
+st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+with st.expander("How does this work?"):
+    st.markdown("""
+    <div style="font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; line-height: 1.6; color: #333333; padding: 0.5rem 0;">
+        <ul style="margin: 0; padding-left: 1.2rem;">
+            <li style="margin-bottom: 0.5rem;">
+                <strong>Perspective Grid Extraction:</strong> The input image is preprocessed using Gaussian blur and adaptive thresholding. The system extracts the largest 4-sided contour as the board, unwarps it into a clean 900x900 pixel square using an OpenCV perspective transform, and segments it into 81 cell images.
+            </li>
+            <li style="margin-bottom: 0.5rem;">
+                <strong>Synthetic Font CNN Training:</strong> To recognize printed characters, the digit classifier utilizes a custom convolutional network (CNN) trained on machine-printed fonts with added noise, rotations, and line artifacts. This yields robust predictions for structured sudoku puzzles without the hand-drawn bias of MNIST.
+            </li>
+            <li style="margin-bottom: 0.5rem;">
+                <strong>Backtracking Logic Solver:</strong> The backend solver recursively searches the state space using depth-first search. It assigns a valid number to an empty cell, checks constraints, and recursively solves the rest of the board. If a dead end is encountered, it backtracks and attempts the next number.
+            </li>
+            <li style="margin-bottom: 0.5rem;">
+                <strong>Softmax Confidence Propagation:</strong> The CNN outputs a softmax probability vector for each cell. The maximum value represents the confidence score of the digit classification. Lower-confidence classifications can be inspected dynamically via the table or heatmap overlays.
+            </li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 4. Footer
+st.markdown("""
+<hr style="border: 0; border-top: 1px solid #E0E0D8; margin-top: 3rem; margin-bottom: 1.5rem;">
+<div style="display: flex; justify-content: space-between; font-family: 'Space Grotesk', sans-serif; font-size: 0.75rem; color: #888888;">
+    <span>Attribution: Built by Shivaansh & Antigravity</span>
+    <span><a href="https://github.com/shivaansh0610-LUFFY/Sudoku-Solver" target="_blank" style="color: #888888; text-decoration: none; border-bottom: 1px solid #CCCCCC;">GitHub Repository</a></span>
+</div>
+""", unsafe_allow_html=True)
+
+
