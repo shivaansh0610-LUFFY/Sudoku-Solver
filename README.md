@@ -1,132 +1,128 @@
-# Sudoku Solver
+# 🧩 Sudoku Solver Pipeline
 
-A computer vision and deep learning pipeline that takes a photo or screenshot of a Sudoku puzzle, extracts the grid, recognizes the printed digits, and solves the puzzle. 
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8.svg?style=flat-square&logo=opencv&logoColor=white)](https://opencv.org/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-FF6F00.svg?style=flat-square&logo=tensorflow&logoColor=white)](https://www.tensorflow.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.x-FF4B4B.svg?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-This project is split into phases:
-- **Phase 1 (Day 1)**: Grid extraction and cell segmentation using OpenCV.
-- **Phase 2 (Day 2)**: Digit recognition using a custom-trained Convolutional Neural Network (CNN) in TensorFlow/Keras.
-- **Phase 3 (Day 3)**: Backtracking Sudoku solver and validation.
-- **Phase 4 (Upcoming)**: Solution rendering/overlay.
+An end-to-end computer vision and deep learning pipeline that takes a photograph or screenshot of a printed Sudoku puzzle, extracts and deskews the grid, recognizes the pre-filled digits with high confidence, and renders the solved board back onto the original perspective.
 
----
-
-## Demo
-
-| Input Photo | Warped Grid | Preprocessed Cells | Reconstructed Grid |
-|---|---|---|---|
-| Raw photo / Screenshot | `output/03_warped.jpg` | Aligned and binarized digits | Console text output |
-
-Example output printed to console:
-```text
-8 . . | 4 . 6 | . . 7
-. . . | . . . | 4 . .
-. 1 . | . . . | 6 5 .
----------------------
-5 . 9 | . 3 . | 7 8 .
-. . . | . 7 . | . . .
-. 4 8 | . 2 . | 1 . 3
----------------------
-. 5 2 | . . . | . 9 .
-. . 1 | . . . | . . .
-3 . . | 9 . 2 | . . 5
-```
+🚀 **Live Web App Demo**: Explore the interactive visual solver at [sudoku-solver-0610.streamlit.app](https://sudoku-solver-0610.streamlit.app)
 
 ---
 
-## How It Works
+## ⚡ Features & Capabilities
+
+- **Interactive Solver Web UI**: Beautiful custom light parchment theme layout featuring staggered loading states, interactive stats, recognized digits lookup table, and solving metric logs.
+- **Confidence Heatmap Overlay**: Softmax confidence scores derived from the CNN model can be toggled on-grid to color-tint cells dynamically (highlighting low-confidence digit reads).
+- **Difficulty Estimator Alert**: Dynamically estimates puzzle difficulty (e.g. *Easy, Medium, Hard, Extreme*) using pre-filled clue numbers and recursive backtrack search counts.
+- **Robust OCR Pipeline**: Cleans cell borders, removes grid noise using Connected Component Analysis (CCA), and centers the digits for invariant scale/translation predictions.
+- **Synthetic Font Canvas Generator**: Custom dataset generator trained on computer-printed macOS system fonts and noise distributions (instead of MNIST hand-drawn samples) for perfect alignment on printed boards.
+
+---
+
+## 📸 Pipeline Visual Flow
+
+| 1. Original Input | 2. Detected Contour | 3. Deskewed Warped Grid | 4. Solved Perspective Overlay |
+| :---: | :---: | :---: | :---: |
+| ![Original](test_images/sample_hard.jpg) | ![Contour](output/02_contour.jpg) | ![Warped](output/03_warped.jpg) | ![Overlay](output/04_solved_overlay.jpg) |
+
+---
+
+## ⚙️ How It Works
 
 ### 1. Grid Extraction (OpenCV)
-- **Preprocess** — Grayscale conversion, Gaussian blurring, and adaptive thresholding to handle uneven lighting. Morphological dilation closes small gaps in black grid lines.
-- **Warp** — Locates the nested black grid contour, orders the corners (Top-Left, Top-Right, Bottom-Right, Bottom-Left), and applies a perspective transform to map it to a flat `900x900px` square.
-- **Segment** — Slices the warped image into 81 evenly-spaced `100x100px` individual cell images.
+- **Preprocess**: Grayscale conversion, Gaussian blurring, and adaptive thresholding handle non-uniform shadows. Morphological dilation closes structural gaps in grid lines.
+- **Deskew & Warp**: Detects the largest 4-sided contour, orders its corner vectors (Top-Left, Top-Right, Bottom-Right, Bottom-Left), and applies a perspective warp to project it to a flat `900x900px` canvas.
+- **Segment**: Slices the flat board into 81 uniform `100x100px` cells.
 
-### 2. Digit Recognition (TensorFlow/Keras)
-- **Binarization & Cleaning** — Clears the outer 20-pixel border of each cell to erase remaining grid lines. Keeps only the largest connected component (foreground stroke) to discard split serifs or small dust particles.
-- **Centering** — Crops the digit to its bounding box, rescales it to fit within a `24x24px` box, and centers it on a `32x32px` white canvas. This makes the recognition translation- and scale-invariant.
-- **Blank Cell Detection** — Analyzes the center 60% of each cleared cell using standard deviation and ink pixel density (< 2.0% area is classified as blank).
-- **CNN Classifier** — A custom CNN model (`Conv2D -> MaxPool -> Dropout -> Conv2D -> MaxPool -> Dropout -> Dense -> Dropout -> Dense`) trained on a diverse synthetic dataset of printed fonts.
+### 2. Digit Recognition (TensorFlow & Keras)
+- **Border Clearing**: Shaves the outer 20-pixel frame of each cell to remove bleeding grid lines.
+- **Ink Clean**: Isolates the largest connected component (foreground stroke) using Connected Component Analysis (CCA), discarding split serifs and dust.
+- **Scale Centering**: Bounding-box crops the digit, scales it to fit within a `24x24px` viewport, and centers it on a `32x32px` blank canvas.
+- **Blank Detection**: Classifies empty cells using standard deviation and pixel density thresholds (< 2.0% ink is treated as blank).
+- **CNN Classifier**: Custom Convolutional Neural Network trained on standard macOS printed fonts with added rotation (`-10°` to `+10°`), translation, shearing, and noise.
 
-### 3. Backtracking Solver
-- **Input Validation** — Sanitizes the input grid by verifying that already-filled cells do not violate row, column, or 3x3 box rules. This prevents wasting time on solving boards containing digit-recognition errors (e.g. duplicates).
-- **Self-Comparison Safeguard** — When validating, temporarily clears the target cell to `0` to prevent it from matching itself as a duplicate row/column/box digit.
-- **Backtracking Algorithm** — A classic recursive depth-first backtracking algorithm that finds the first empty cell in row-major order, places valid candidate digits 1-9, and backtracks if a path is invalid.
-
-### 3. Synthetic Dataset Generator
-Since handwritten MNIST digits look significantly different from printed puzzle fonts, the pipeline includes a synthetic training generator that:
-- Renders digits 1-9 onto blank canvases using common macOS system fonts (Arial, Helvetica, Verdana, Georgia, Times New Roman, Courier New, Trebuchet MS) and modern sans-serifs (Helvetica Neue, SFNS).
-- Applies random scaling (`60-85`pt), rotation (`-10` to `10` degrees), shearing, random translation, and noise.
-- Translates digits up to `[-10, 10]`px to naturally simulate boundary cropping caused by cell borders.
-- Randomly renders the digit `1` as `'1'`, `'I'`, or `'|'` to ensure robustness for fonts representing it as a simple vertical line.
+### 3. Backtracking Logic Solver & Validator
+- **Integrity Validation**: Sanitizes the input grid by verifying that already-filled cells do not violate row, column, or 3x3 box rules.
+- **DF Backtracking Algorithm**: A depth-first recursive solver search that assigns candidate numbers 1-9 in row-major order, checks puzzle constraints, and backtracks upon dead ends.
 
 ---
 
-## Installation & Usage
+## 🛠️ Installation & CLI Usage
 
-### 1. Install Dependencies
+### 1. Clone & Install Dependencies
 ```bash
+git clone https://github.com/shivaansh0610-LUFFY/Sudoku-Solver.git
+cd Sudoku-Solver
 pip install -r requirements.txt
 ```
 
-### 2. Generate Dataset & Train Model
-To generate the training dataset (saved to `synthetic_digits/`) and train the CNN classifier (saved to `model/digit_classifier.h5`):
+### 2. Local Training (Optional)
+Generate the synthetic digits dataset and train the CNN classifier weights locally:
 ```bash
-# Generate the synthetic digits
+# Generate the synthetic digits (saved under synthetic_digits/)
 python digit_recognizer.py --generate
 
-# Train the CNN model
+# Train the CNN model (saves model to model/digit_classifier.h5)
 python digit_recognizer.py --train
 ```
 
-### 3. Run the Pipeline
-Run the end-to-end extractor and digit recognition pipeline on any Sudoku puzzle photo or screenshot:
+### 3. Run Pipeline CLI
+Process and solve any puzzle photo directly from the command line:
 ```bash
 python main.py path/to/sudoku_image.jpg
 ```
 
 ---
 
-## Project Structure
-
-```text
-Sudoku Solver/
-├── main.py                  # Main CLI entrypoint
-├── solver.py                # Backtracking solver, validation, and pretty printing
-├── grid_extractor.py        # OpenCV grid warping and cell segmenter
-├── digit_recognizer.py      # Synthetic dataset generator, CNN model, and OCR pipeline
-├── requirements.txt         # Project dependencies
-├── .gitignore               # Ignored caches, datasets, and output images
-├── test_images/             # Test photos and screenshots
-├── model/
-│   └── digit_classifier.h5  # Trained Keras CNN model weights
-└── output/                  # Generated intermediate images
-    ├── 01_threshold.jpg     # Binary thresholded image
-    ├── 02_contour.jpg       # Detected grid outline
-    ├── 03_warped.jpg        # Deskewed 900x900 grid
-    └── cells/               # Folder containing 81 cell images
+## 🖥️ Local Web Deployment
+Launch the interactive Streamlit dashboard locally:
+```bash
+streamlit run app.py
 ```
 
 ---
 
-## Requirements
+## 📂 Project Structure
 
-- Python 3.9+
-- OpenCV (`opencv-python`)
-- NumPy
-- TensorFlow
-- Pillow (PIL)
+```text
+Sudoku-Solver/
+├── app.py                   # Streamlit web application dashboard (UI/UX)
+├── main.py                  # Main CLI pipeline entry point
+├── solver.py                # Backtracking solver algorithm & grid validation
+├── grid_extractor.py        # OpenCV image warping & cell segmenter
+├── digit_recognizer.py      # Synthetic dataset generator, CNN classifier & OCR
+├── requirements.txt         # Project package dependencies
+├── .streamlit/
+│   └── config.toml          # Streamlit theme colors config (Warm parchment)
+├── assets/
+│   └── sudoku_hero.jpg      # Premium hero header image
+├── test_images/             # Sample images (Standard, Hard, Empty)
+├── model/
+│   └── digit_classifier.h5  # Trained Keras CNN model weights
+└── output/                  # Generated intermediate pipeline steps
+    ├── 01_threshold.jpg     # Binary thresholded scan
+    ├── 02_contour.jpg       # Detected grid boundaries
+    ├── 03_warped.jpg        # Deskewed 900x900 grid
+    └── 04_solved_overlay.jpg# Solved overlay warped back to original photo
+```
 
 ---
 
-## Roadmap
+## 🗺️ Project Roadmap
 
-- [x] Grid detection and perspective correction
-- [x] Digit recognition (blank-cell detection + CNN classifier on printed digits)
-- [x] Backtracking Sudoku solver (Phase 3)
-- [ ] Solution overlay back onto the original photo
-- [ ] Simple web demo (Streamlit)
+- [x] Grid extraction & perspective warp correction
+- [x] Blank-cell thresholding & printed font CNN classification
+- [x] Recursive Depth-First Search solver & cell validation
+- [x] Inverse perspective overlay projection back onto raw photos
+- [x] Staggered interactive Streamlit Web App dashboard
+- [x] Confidence heatmap grid visualization
+- [x] Difficulty analysis & backtrack metric logs
 
 ---
 
-## License
+## 📄 License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
