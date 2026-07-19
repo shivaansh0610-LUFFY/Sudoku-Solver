@@ -497,9 +497,9 @@ if original_img is not None:
                             "solve_time_ms": solve_time_ms,
                             "digits_count": sum(1 for row in grid for val in row if val != 0)
                         }
-                except Exception as e:
-                    st.error(f"Error executing pipeline: {e}")
-                    st.session_state.pipeline_results = {"success": False, "error": str(e)}
+            except Exception as e:
+                st.error(f"Error executing pipeline: {e}")
+                st.session_state.pipeline_results = {"success": False, "error": str(e)}
             else:
                 # If cached, render status checklist based on stored result
                 res = st.session_state.pipeline_results
