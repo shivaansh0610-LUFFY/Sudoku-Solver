@@ -448,55 +448,55 @@ if original_img is not None:
                 time.sleep(0.2)
                 cells = extract_cells(image_path_to_use)
                 render_status(status_p1, "01", "grid detect", "done")
+                
+                # 2. Digit recognition
+                render_status(status_p2, "02", "digit recognition", "running")
+                time.sleep(0.2)
+                grid, confidence_grid = build_grid()
+                render_status(status_p2, "02", "digit recognition", "done")
+                
+                # 3. Solve
+                render_status(status_p3, "03", "solve", "running")
+                time.sleep(0.2)
+                
+                if not is_valid_puzzle(grid):
+                    render_status(status_p3, "03", "solve", "error")
+                    st.error("Recognized grid is contradictory — check digit recognition output above for misread cells")
+                    st.session_state.pipeline_results = {"success": False, "error": "Contradictory grid"}
+                else:
+                    grid_copy = copy.deepcopy(grid)
+                    start_time = time.time()
+                    solved, backtracks = solve(grid_copy)
+                    end_time = time.time()
+                    solve_time_ms = (end_time - start_time) * 1000.0
                     
-                    # 2. Digit recognition
-                    render_status(status_p2, "02", "digit recognition", "running")
-                    time.sleep(0.2)
-                    grid, confidence_grid = build_grid()
-                    render_status(status_p2, "02", "digit recognition", "done")
-                    
-                    # 3. Solve
-                    render_status(status_p3, "03", "solve", "running")
-                    time.sleep(0.2)
-                    
-                    if not is_valid_puzzle(grid):
+                    if not solved:
                         render_status(status_p3, "03", "solve", "error")
-                        st.error("Recognized grid is contradictory — check digit recognition output above for misread cells")
-                        st.session_state.pipeline_results = {"success": False, "error": "Contradictory grid"}
+                        st.error("No solution exists for this Sudoku grid.")
+                        st.session_state.pipeline_results = {"success": False, "error": "No solution"}
                     else:
-                        grid_copy = copy.deepcopy(grid)
-                        start_time = time.time()
-                        solved, backtracks = solve(grid_copy)
-                        end_time = time.time()
-                        solve_time_ms = (end_time - start_time) * 1000.0
+                        render_status(status_p3, "03", "solve", "done")
                         
-                        if not solved:
-                            render_status(status_p3, "03", "solve", "error")
-                            st.error("No solution exists for this Sudoku grid.")
-                            st.session_state.pipeline_results = {"success": False, "error": "No solution"}
-                        else:
-                            render_status(status_p3, "03", "solve", "done")
-                            
-                            # 4. Overlay
-                            render_status(status_p4, "04", "overlay", "running")
-                            time.sleep(0.2)
-                            warped_img = cv2.imread("output/03_warped.jpg")
-                            original_corners = detect_corners(original_img)
-                            warped_overlay = draw_solution_on_warped(warped_img, grid, grid_copy)
-                            unwarp_overlay(original_img, warped_overlay, original_corners)
-                            render_status(status_p4, "04", "overlay", "done")
-                            
-                            # Cache all success outputs
-                            st.session_state.pipeline_results = {
-                                "success": True,
-                                "grid": grid,
-                                "confidence_grid": confidence_grid,
-                                "solved_grid": grid_copy,
-                                "overlay_saved": True,
-                                "backtracks": backtracks,
-                                "solve_time_ms": solve_time_ms,
-                                "digits_count": sum(1 for row in grid for val in row if val != 0)
-                            }
+                        # 4. Overlay
+                        render_status(status_p4, "04", "overlay", "running")
+                        time.sleep(0.2)
+                        warped_img = cv2.imread("output/03_warped.jpg")
+                        original_corners = detect_corners(original_img)
+                        warped_overlay = draw_solution_on_warped(warped_img, grid, grid_copy)
+                        unwarp_overlay(original_img, warped_overlay, original_corners)
+                        render_status(status_p4, "04", "overlay", "done")
+                        
+                        # Cache all success outputs
+                        st.session_state.pipeline_results = {
+                            "success": True,
+                            "grid": grid,
+                            "confidence_grid": confidence_grid,
+                            "solved_grid": grid_copy,
+                            "overlay_saved": True,
+                            "backtracks": backtracks,
+                            "solve_time_ms": solve_time_ms,
+                            "digits_count": sum(1 for row in grid for val in row if val != 0)
+                        }
                 except Exception as e:
                     st.error(f"Error executing pipeline: {e}")
                     st.session_state.pipeline_results = {"success": False, "error": str(e)}
