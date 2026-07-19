@@ -69,17 +69,17 @@ def render_status(placeholder, step_num, step_name, state):
         bg_color = "#FAFAF8"
     elif state == "running":
         icon = "&bull;&nbsp;"
-        border_color = "#185FA5"
+        border_color = "#185FA5" # Active running state (blue)
         text_color = "#111111"
         bg_color = "#F4F7FB"
     elif state == "done":
         icon = "&check;&nbsp;"
-        border_color = "#1D9E75"
+        border_color = "#1D9E75" # Accent color (green)
         text_color = "#1D9E75"
         bg_color = "#F0F9F6"
     else: # error
         icon = "&cross;&nbsp;"
-        border_color = "#D9534F"
+        border_color = "#D9534F" # Error state (red)
         text_color = "#D9534F"
         bg_color = "#FDF4F4"
         
@@ -225,17 +225,36 @@ def generate_confidence_table(grid, conf_grid):
             else:
                 conf_pct = int(conf * 100)
                 if conf > 0.90:
-                    color = "#1D9E75"
+                    color = "#1D9E75" # High confidence - Forest Green
                 elif conf < 0.75:
-                    color = "#D9534F"
+                    color = "#D9534F" # Low confidence - Warning Red
                 else:
-                    color = "#111111"
+                    color = "#111111" # Medium confidence - Normal Text
                 cell_content = f'<div style="font-weight:700; color:{color};">{val}</div><div style="font-size:0.65rem; color:#666;">{conf_pct}%</div>'
                 
             html.append(f'<td style="{cell_style}">{cell_content}</td>')
         html.append('</tr>')
     html.append('</table>')
     return "\n".join(html)
+
+def render_stats_bar(digits_count, backtracks, solve_time_ms):
+    """
+    Renders a 4-column metric row styled to match the mono/thin-border engineering aesthetic.
+    """
+    col1, col2, col3, col4 = st.columns(4)
+    
+    def render_stat(col, value, label):
+        col.markdown(f"""
+        <div style="border: 1px solid #E0E0D8; padding: 0.5rem; border-radius: 2px; text-align: center; background-color: #FAFAF8;">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #111111;">{value}</div>
+            <div style="font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; color: #666; text-transform: uppercase; margin-top: 0.15rem; letter-spacing: 0.05em;">{label}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    render_stat(col1, "81", "cells")
+    render_stat(col2, str(digits_count), "digits")
+    render_stat(col3, str(backtracks), "backtracks")
+    render_stat(col4, f"{solve_time_ms:.1f}ms", "solve time")
 
 # 1. Header Bar
 st.markdown("""
@@ -255,6 +274,7 @@ if "pipeline_results" not in st.session_state:
 uploaded_file = st.file_uploader("Upload a Sudoku Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
+    # Clear cache if a new file is uploaded
     if st.session_state.current_file != uploaded_file.name:
         st.session_state.current_file = uploaded_file.name
         st.session_state.pipeline_results = None
@@ -270,6 +290,7 @@ if uploaded_file is not None:
         
         with col_left:
             st.markdown("<h3 style='margin-top:0;'>Solver Playback</h3>", unsafe_allow_html=True)
+            # Solved animated grid placeholder, populated below
             
         with col_right:
             st.markdown("<h3 style='margin-top:0;'>Pipeline Status</h3>", unsafe_allow_html=True)
@@ -278,6 +299,7 @@ if uploaded_file is not None:
             status_p3 = st.empty()
             status_p4 = st.empty()
             
+            # If not in cache, run the pipeline step-by-step
             if st.session_state.pipeline_results is None:
                 render_status(status_p1, "01", "grid detect", "pending")
                 render_status(status_p2, "02", "digit recognition", "pending")
@@ -303,14 +325,18 @@ if uploaded_file is not None:
                     
                     if not is_valid_puzzle(grid):
                         render_status(status_p3, "03", "solve", "error")
-                        st.error("Recognized grid is contradictory.")
+                        st.error("Recognized grid is contradictory — check digit recognition output above for misread cells")
                         st.session_state.pipeline_results = {"success": False, "error": "Contradictory grid"}
                     else:
                         grid_copy = copy.deepcopy(grid)
+                        start_time = time.time()
                         solved, backtracks = solve(grid_copy)
+                        end_time = time.time()
+                        solve_time_ms = (end_time - start_time) * 1000.0
+                        
                         if not solved:
                             render_status(status_p3, "03", "solve", "error")
-                            st.error("No solution exists.")
+                            st.error("No solution exists for this Sudoku grid.")
                             st.session_state.pipeline_results = {"success": False, "error": "No solution"}
                         else:
                             render_status(status_p3, "03", "solve", "done")
@@ -324,17 +350,22 @@ if uploaded_file is not None:
                             unwarp_overlay(original_img, warped_overlay, original_corners)
                             render_status(status_p4, "04", "overlay", "done")
                             
+                            # Cache all success outputs
                             st.session_state.pipeline_results = {
                                 "success": True,
                                 "grid": grid,
                                 "confidence_grid": confidence_grid,
                                 "solved_grid": grid_copy,
-                                "overlay_saved": True
+                                "overlay_saved": True,
+                                "backtracks": backtracks,
+                                "solve_time_ms": solve_time_ms,
+                                "digits_count": sum(1 for row in grid for val in row if val != 0)
                             }
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"Error executing pipeline: {e}")
                     st.session_state.pipeline_results = {"success": False, "error": str(e)}
             else:
+                # If cached, render status checklist based on stored result
                 res = st.session_state.pipeline_results
                 if res.get("success"):
                     render_status(status_p1, "01", "grid detect", "done")
@@ -345,7 +376,15 @@ if uploaded_file is not None:
                     render_status(status_p1, "01", "grid detect", "done")
                     render_status(status_p2, "02", "digit recognition", "done")
                     render_status(status_p3, "03", "solve", "error")
-                    
+                    st.error(f"Cached pipeline error: {res.get('error')}")
+            
+            # Show stats bar
+            if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
+                res = st.session_state.pipeline_results
+                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+                render_stats_bar(res["digits_count"], res["backtracks"], res["solve_time_ms"])
+                
+            # Show additional pipeline components in right column
             if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
                 res = st.session_state.pipeline_results
                 grid = res["grid"]
@@ -354,6 +393,7 @@ if uploaded_file is not None:
                 st.markdown("<h3>Intermediate Outputs</h3>", unsafe_allow_html=True)
                 st.image("output/02_contour.jpg", caption="Grid detected", use_container_width=True)
                 
+                # Digit recognition table / pretty print
                 st.markdown("<h3>Recognized Digits</h3>", unsafe_allow_html=True)
                 show_conf = st.toggle("Show confidence scores", value=False)
                 
@@ -362,6 +402,7 @@ if uploaded_file is not None:
                     st.markdown(html_table, unsafe_allow_html=True)
                     st.caption("Digits recognized with confidence scores")
                 else:
+                    # Pretty printed string representation
                     def format_grid_str(g):
                         lines = []
                         for r in range(9):
@@ -379,12 +420,17 @@ if uploaded_file is not None:
                     st.code(format_grid_str(grid))
                     st.caption("Digits recognized")
                 
+        # Draw playback and overlay in left column
         if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
             with col_left:
                 res = st.session_state.pipeline_results
+                # Playback animation
                 render_animated_grid(res["grid"], res["solved_grid"])
                 
                 st.markdown("<h3>Solved on Original Photo</h3>", unsafe_allow_html=True)
                 st.caption("Final solution warped back to original photo perspective")
                 if os.path.exists("output/04_solved_overlay.jpg"):
                     st.image("output/04_solved_overlay.jpg", caption="Solved!", use_container_width=True)
+        else:
+            with col_left:
+                st.info("Upload an image to start pipeline solver playback.")
