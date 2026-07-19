@@ -88,3 +88,45 @@ def detect_corners(original_img):
         ordered_pts = ordered_pts / scale
         
     return ordered_pts
+
+def draw_solution_on_warped(warped_img, original_grid, solved_grid):
+    """
+    Takes the 900x900 warped image (from Day 1), the originally recognized grid (with 0s for blanks),
+    and the fully solved grid.
+    
+    Draws the solved digits on a copy of the warped image, in green, ONLY for cells that were
+    originally empty (original_grid[r][c] == 0).
+    """
+    annotated = warped_img.copy()
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 1.6
+    thickness = 3
+    color = (0, 180, 0) # Green color in BGR (or RGB since both G values match)
+    
+    for r in range(9):
+        for c in range(9):
+            # ONLY draw on cells that were originally empty
+            if original_grid[r][c] == 0:
+                digit = solved_grid[r][c]
+                if digit == 0:
+                    continue # Skip if it wasn't solved or still empty
+                
+                text = str(digit)
+                
+                # Measure text size to center it horizontally in the 100x100 cell
+                (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+                
+                # Cell bounding coordinates: [c*100, (c+1)*100] horizontally
+                cell_left_x = c * 100
+                x = cell_left_x + (100 - text_width) // 2
+                
+                # Cell bounding coordinates: [r*100, (r+1)*100] vertically
+                # Place baseline at (100 + text_height) // 2 for perfect centering
+                cell_top_y = r * 100
+                y = cell_top_y + (100 + text_height) // 2 - 2
+                
+                # Draw the text onto the warped grid
+                cv2.putText(annotated, text, (x, y), font, font_scale, color, thickness, cv2.LINE_AA)
+                
+    return annotated
