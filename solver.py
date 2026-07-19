@@ -40,25 +40,32 @@ def find_empty_cell(grid) -> tuple or None:
                 return (r, c)
     return None
 
-def solve(grid) -> bool:
+def solve(grid) -> tuple:
     """
     Solves the Sudoku grid in-place using a classic recursive backtracking algorithm.
-    Returns True if a solution was found and mutated in place, False otherwise.
+    Returns a tuple (success, backtrack_count).
     """
-    empty = find_empty_cell(grid)
-    if not empty:
-        return True
-        
-    row, col = empty
-    for num in range(1, 10):
-        if is_valid(grid, row, col, num):
-            grid[row][col] = num
-            if solve(grid):
-                return True
-            # Backtrack
-            grid[row][col] = 0
+    backtrack_count = [0]
+    
+    def backtrack(g):
+        empty = find_empty_cell(g)
+        if not empty:
+            return True
             
-    return False
+        row, col = empty
+        for num in range(1, 10):
+            if is_valid(g, row, col, num):
+                g[row][col] = num
+                if backtrack(g):
+                    return True
+                # Backtrack
+                g[row][col] = 0
+                backtrack_count[0] += 1
+                
+        return False
+        
+    success = backtrack(grid)
+    return success, backtrack_count[0]
 
 def is_valid_puzzle(grid) -> bool:
     """
@@ -122,11 +129,11 @@ if __name__ == "__main__":
     # Solve the puzzle and measure time
     grid_copy = copy.deepcopy(valid_puzzle)
     start_time = time.time()
-    success = solve(grid_copy)
+    success, backtracks = solve(grid_copy)
     end_time = time.time()
     
     if success:
-        print(f"\nPuzzle solved successfully in {(end_time - start_time) * 1000:.2f} ms!")
+        print(f"\nPuzzle solved successfully in {(end_time - start_time) * 1000:.2f} ms with {backtracks} backtracks!")
         pretty_print_grid(grid_copy)
     else:
         print("\nFailed to solve puzzle.")
