@@ -53,7 +53,7 @@ st.markdown("""
     
     /* Subtle background grid-line watermark */
     .stApp {
-        background-color: #F2F0E8 !important;
+        background-color: #EDE9DC !important;
         background-image: 
             linear-gradient(135deg, rgba(29, 158, 117, 0.02) 0%, rgba(24, 95, 165, 0.02) 100%),
             linear-gradient(to right, rgba(26, 26, 23, 0.025) 1px, transparent 1px),
@@ -132,7 +132,7 @@ def render_status(placeholder, step_num, step_name, state):
         icon = "&nbsp;&nbsp;"
         border_color = "#E0E0D8"
         text_color = "#888888"
-        bg_color = "#F2F0E8"
+        bg_color = "#EDE9DC"
     elif state == "running":
         icon = "&bull;&nbsp;"
         border_color = "#185FA5" # Active running state (blue)
@@ -184,7 +184,7 @@ def render_animated_grid(original_grid, solved_grid, confidence_grid=None, show_
                 width: 360px;
                 height: 360px;
                 border: 2px solid #1A1A17;
-                background-color: #F2F0E8;
+                background-color: #EDE9DC;
             }}
             .cell {{
                 display: flex;
@@ -275,7 +275,7 @@ def generate_confidence_table(grid, conf_grid):
     """
     Generates a clean HTML table representing the recognized digits and their confidence scores.
     """
-    html = ['<table style="width:100%; border-collapse: collapse; font-family: \'IBM Plex Mono\', monospace; border: 2px solid #1A1A17; font-size: 0.85rem; text-align: center; background-color: #F2F0E8;">']
+    html = ['<table style="width:100%; border-collapse: collapse; font-family: \'IBM Plex Mono\', monospace; border: 2px solid #1A1A17; font-size: 0.85rem; text-align: center; background-color: #EDE9DC;">']
     for r in range(9):
         row_style = ""
         if r in [2, 5]:
@@ -324,7 +324,7 @@ def render_stats_bar(digits_count, backtracks, solve_time_ms):
     
     def render_stat(col, value, label):
         col.markdown(f"""
-        <div style="border: 1px solid #E0E0D8; padding: 0.5rem; border-radius: 2px; text-align: center; background-color: #F2F0E8;">
+        <div style="border: 1px solid #E0E0D8; padding: 0.5rem; border-radius: 2px; text-align: center; background-color: #EDE9DC;">
             <div style="font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #1A1A17;">{value}</div>
             <div style="font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; color: #666; text-transform: uppercase; margin-top: 0.15rem; letter-spacing: 0.05em;">{label}</div>
         </div>
