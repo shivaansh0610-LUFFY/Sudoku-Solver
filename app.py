@@ -381,6 +381,11 @@ if is_solving:
             st.session_state.selected_example_v3 = None
             st.session_state.current_file_v3 = None
             st.session_state.pipeline_results_v3 = None
+            if os.path.exists("temp_input.jpg"):
+                try:
+                    os.remove("temp_input.jpg")
+                except:
+                    pass
             st.rerun()
     with col_ctrl2:
         uploaded_file = st.file_uploader("Upload a new image to replace current", type=["jpg", "jpeg", "png"], key="uploader_workspace")
@@ -453,6 +458,13 @@ if uploaded_file is not None:
         
     original_img = cv2.imread(temp_path)
     image_path_to_use = temp_path
+elif st.session_state.current_file_v3 is not None and st.session_state.selected_example_v3 is None:
+    temp_path = "temp_input.jpg"
+    if os.path.exists(temp_path):
+        original_img = cv2.imread(temp_path)
+        image_path_to_use = temp_path
+    else:
+        original_img = None
 elif st.session_state.selected_example_v3 is not None:
     original_img = cv2.imread(st.session_state.selected_example_v3)
     image_path_to_use = st.session_state.selected_example_v3
