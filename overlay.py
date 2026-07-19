@@ -130,3 +130,53 @@ def draw_solution_on_warped(warped_img, original_grid, solved_grid):
                 cv2.putText(annotated, text, (x, y), font, font_scale, color, thickness, cv2.LINE_AA)
                 
     return annotated
+
+def unwarp_overlay(original_img, warped_overlay_img, original_corners):
+    """
+    Takes the original (unwarped, possibly skewed) input image and the annotated 900x900 warped+solved image.
+    Computes the INVERSE perspective transform, warps the overlay back, and composites it onto the original.
+    Saves the result to output/04_solved_overlay.jpg.
+    """
+    # 1. Validate corners
+    if original_corners is None or len(original_corners) != 4:
+        raise ValueError("Invalid original corners: must contain exactly 4 points.")
+        
+    is_convex = cv2.isContourConvex(original_corners.astype(np.int32))
+    if not is_convex:
+        print("WARNING: The detected grid corners do not form a convex quadrilateral. The unwarped overlay might be distorted.")
+        
+    h_orig, w_orig = original_img.shape[:2]
+    
+    # Destination points in warp (source points in inverse warp)
+    dst = np.array([
+        [0, 0],
+        [900, 0],
+        [900, 900],
+        [0, 900]
+    ], dtype="float32")
+    
+    # 2. Compute inverse perspective transform
+    M_inv = cv2.getPerspectiveTransform(dst, original_corners.astype(np.float32))
+    
+    # 3. Warp the annotated overlay back to the original image dimensions
+    warped_back = cv2.warpPerspective(warped_overlay_img, M_inv, (w_orig, h_orig))
+    
+    # 4. Create and warp mask to prevent edge seams/gaps
+    warped_mask = np.ones((900, 900), dtype=np.uint8) * 255
+    mask = cv2.warpPerspective(warped_mask, M_inv, (w_orig, h_orig), flags=cv2.INTER_LINEAR)
+    
+    # 5. Composite using alpha blending
+    mask_f = mask.astype(np.float32) / 255.0
+    if len(original_img.shape) == 3:
+        mask_3d = np.repeat(mask_f[:, :, np.newaxis], 3, axis=2)
+    else:
+        mask_3d = mask_f
+        
+    composited = (original_img.astype(np.float32) * (1.0 - mask_3d) + warped_back.astype(np.float32) * mask_3d)
+    composited = np.clip(composited, 0, 255).astype(np.uint8)
+    
+    # Ensure output directory exists and save
+    os.makedirs("output", exist_ok=True)
+    cv2.imwrite(os.path.join("output", "04_solved_overlay.jpg"), composited)
+    
+    return composited
