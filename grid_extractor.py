@@ -27,7 +27,7 @@ def order_corners(pts):
     
     return rect
 
-def extract_cells(image_path):
+def extract_cells(image_path, output_dir="output"):
     """
     Extracts the 9x9 sudoku grid from an image, warps it to a 900x900px square,
     and returns a list of 81 cells (100x100px) in row-major order.
@@ -52,7 +52,7 @@ def extract_cells(image_path):
         print(f"Resized image from {w}x{h} to {new_w}x{new_h} to optimize processing.")
     
     # Ensure output directory exists
-    os.makedirs("output", exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     
     # 2. Preprocessing
     # Convert to grayscale
@@ -71,7 +71,7 @@ def extract_cells(image_path):
     thresh = cv2.dilate(thresh, kernel, iterations=1)
     
     # Save the thresholded/dilated image
-    cv2.imwrite(os.path.join("output", "01_threshold.jpg"), thresh)
+    cv2.imwrite(os.path.join(output_dir, "01_threshold.jpg"), thresh)
     
     # 3. Contour detection
     try:
@@ -114,7 +114,7 @@ def extract_cells(image_path):
     img_contour = img.copy()
     if grid_contour is not None:
         cv2.drawContours(img_contour, [grid_contour], -1, (0, 255, 0), 3)
-    cv2.imwrite(os.path.join("output", "02_contour.jpg"), img_contour)
+    cv2.imwrite(os.path.join(output_dir, "02_contour.jpg"), img_contour)
     
     if grid_contour is None:
         raise ValueError(
@@ -146,12 +146,12 @@ def extract_cells(image_path):
         
         # Warp perspective
         warped = cv2.warpPerspective(img, M, (900, 900))
-        cv2.imwrite(os.path.join("output", "03_warped.jpg"), warped)
+        cv2.imwrite(os.path.join(output_dir, "03_warped.jpg"), warped)
     except Exception as e:
         raise RuntimeError(f"Failed to perform perspective warp on the detected grid: {str(e)}")
         
     # 6. Cell splitting
-    os.makedirs(os.path.join("output", "cells"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "cells"), exist_ok=True)
     cells = []
     
     for r in range(9):
@@ -160,7 +160,7 @@ def extract_cells(image_path):
             cell = warped[r * 100 : (r + 1) * 100, c * 100 : (c + 1) * 100]
             
             # Save cell image
-            cell_filename = os.path.join("output", "cells", f"cell_r{r}_c{c}.jpg")
+            cell_filename = os.path.join(output_dir, "cells", f"cell_r{r}_c{c}.jpg")
             cv2.imwrite(cell_filename, cell)
             
             # Add to return list

@@ -4,3 +4,4 @@ tensorflow-cpu
 pillow
 pillow-heif
 streamlit
+pymupdf

@@ -19,6 +19,38 @@ def main():
         print(f"Error: The specified file '{image_path}' does not exist.")
         sys.exit(1)
         
+    is_pdf = image_path.lower().endswith(".pdf")
+    temp_pdf_image_path = None
+    
+    if is_pdf:
+        print(f"Detected PDF file: {image_path}. Converting first page to image...")
+        try:
+            import fitz  # PyMuPDF
+            import numpy as np
+            import cv2
+            
+            doc = fitz.open(image_path)
+            if doc.page_count < 1:
+                print("Error: The specified PDF contains no pages.")
+                sys.exit(1)
+                
+            page = doc.load_page(0)
+            pix = page.get_pixmap(dpi=150)
+            
+            # Convert pixmap to numpy BGR image
+            img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+            if pix.n == 4:
+                bgr_img = cv2.cvtColor(img_data, cv2.COLOR_RGBA2BGR)
+            else:
+                bgr_img = cv2.cvtColor(img_data, cv2.COLOR_RGB2BGR)
+                
+            temp_pdf_image_path = "temp_pdf_page.jpg"
+            cv2.imwrite(temp_pdf_image_path, bgr_img)
+            image_path = temp_pdf_image_path
+        except Exception as e:
+            print(f"Error converting PDF to image: {e}")
+            sys.exit(1)
+        
     print(f"Processing Sudoku image: {image_path}...")
     
     try:
@@ -98,6 +130,12 @@ def main():
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
         sys.exit(1)
+    finally:
+        if temp_pdf_image_path and os.path.exists(temp_pdf_image_path):
+            try:
+                os.remove(temp_pdf_image_path)
+            except:
+                pass
 
 if __name__ == "__main__":
     main()

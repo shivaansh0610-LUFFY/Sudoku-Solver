@@ -131,11 +131,11 @@ def draw_solution_on_warped(warped_img, original_grid, solved_grid):
                 
     return annotated
 
-def unwarp_overlay(original_img, warped_overlay_img, original_corners):
+def unwarp_overlay(original_img, warped_overlay_img, original_corners, output_dir="output"):
     """
     Takes the original (unwarped, possibly skewed) input image and the annotated 900x900 warped+solved image.
     Computes the INVERSE perspective transform, warps the overlay back, and composites it onto the original.
-    Saves the result to output/04_solved_overlay.jpg.
+    Saves the result to output_dir/04_solved_overlay.jpg.
     """
     # 1. Validate corners
     if original_corners is None or len(original_corners) != 4:
@@ -176,7 +176,7 @@ def unwarp_overlay(original_img, warped_overlay_img, original_corners):
     composited = np.clip(composited, 0, 255).astype(np.uint8)
     
     # Ensure output directory exists and save
-    os.makedirs("output", exist_ok=True)
-    cv2.imwrite(os.path.join("output", "04_solved_overlay.jpg"), composited)
+    os.makedirs(output_dir, exist_ok=True)
+    cv2.imwrite(os.path.join(output_dir, "04_solved_overlay.jpg"), composited)
     
     return composited

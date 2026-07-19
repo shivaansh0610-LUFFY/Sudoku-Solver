@@ -360,12 +360,40 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Initialize Session State
+if "session_id" not in st.session_state:
+    import uuid
+    st.session_state.session_id = str(uuid.uuid4())
+if "session_output_dir" not in st.session_state:
+    import tempfile
+    st.session_state.session_output_dir = tempfile.mkdtemp(prefix="sudoku_out_")
+if "temp_image_path" not in st.session_state:
+    st.session_state.temp_image_path = None
 if "current_file_v3" not in st.session_state:
     st.session_state.current_file_v3 = None
 if "pipeline_results_v3" not in st.session_state:
     st.session_state.pipeline_results_v3 = None
 if "selected_example_v3" not in st.session_state:
     st.session_state.selected_example_v3 = None
+
+# Cleanup utility to prevent temp files clutter and collision
+def cleanup_session_files():
+    # 1. Clean up temp uploaded image
+    if st.session_state.temp_image_path and os.path.exists(st.session_state.temp_image_path):
+        try:
+            os.remove(st.session_state.temp_image_path)
+        except:
+            pass
+        st.session_state.temp_image_path = None
+        
+    # 2. Clean up files in output directory, and recreate it
+    if "session_output_dir" in st.session_state and os.path.exists(st.session_state.session_output_dir):
+        import shutil
+        try:
+            shutil.rmtree(st.session_state.session_output_dir)
+        except:
+            pass
+        import tempfile
+        st.session_state.session_output_dir = tempfile.mkdtemp(prefix="sudoku_out_")
 
 # Determine if we are in the landing state or solving state
 is_solving = (st.session_state.selected_example_v3 is not None) or (st.session_state.current_file_v3 is not None)
@@ -378,17 +406,13 @@ if is_solving:
     with col_ctrl1:
         st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
         if st.button("← Back to Landing Page", width="stretch"):
+            cleanup_session_files()
             st.session_state.selected_example_v3 = None
             st.session_state.current_file_v3 = None
             st.session_state.pipeline_results_v3 = None
-            if os.path.exists("temp_input.jpg"):
-                try:
-                    os.remove("temp_input.jpg")
-                except:
-                    pass
             st.rerun()
     with col_ctrl2:
-        uploaded_file = st.file_uploader("Upload a new image to replace current", type=["jpg", "jpeg", "png"], key="uploader_workspace")
+        uploaded_file = st.file_uploader("Upload a new image/PDF to replace current", type=["jpg", "jpeg", "png", "pdf"], key="uploader_workspace")
 else:
     # 2. Landing split layout (Dribbble Granger style)
     col_hero_left, col_hero_right = st.columns([1, 1.25], gap="large")
@@ -397,11 +421,11 @@ else:
         # Giant modern typography headline
         st.markdown("""
         <div style="margin-top: 1rem; margin-bottom: 1.5rem;">
-            <h1 style="font-family: 'Space Grotesk', sans-serif; font-size: 4.5rem; font-weight: 700; color: #1A1A17; line-height: 0.85; margin: 0 0 1.2rem 0; letter-spacing: -0.04em;">
+            <h1 style="font-family: 'Space Grotesk', sans-serif; font-size: 4.5rem; font-weight: 700; color: #0F172A; line-height: 0.85; margin: 0 0 1.2rem 0; letter-spacing: -0.04em;">
                 SUDOKU<br><span style="color: #1D9E75;">SOLVER</span>
             </h1>
             <p style="font-family: 'Space Grotesk', sans-serif; font-size: 1.15rem; color: #4A4A45; line-height: 1.5; margin: 0 0 1.5rem 0;">
-                Photo in, solution out. Feed in any printed sudoku board photograph to dynamically unwarp cells, classify digits using a CNN model, and run depth-first backtracking search.
+                Photo in, solution out. Feed in any printed sudoku board photograph/PDF or snap a photo directly to dynamically unwarp cells, classify digits using a CNN model, and run depth-first backtracking search.
             </p>
             <p style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: #666660; margin: 0 0 2rem 0; letter-spacing: 0.05em;">
                 OPENCV &middot; TENSORFLOW &middot; DEEP_LEARNING
@@ -413,16 +437,19 @@ else:
         st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.9rem; font-weight: 700; margin-bottom: 0.5rem;'>Try a sample image:</p>", unsafe_allow_html=True)
         col_ex1, col_ex2, col_ex3 = st.columns(3)
         if col_ex1.button("Standard (30 clues)", width="stretch", key="btn_std"):
+            cleanup_session_files()
             st.session_state.selected_example_v3 = "test_images/Screenshot 2026-07-14 at 3.40.04 PM.png"
             st.session_state.current_file_v3 = "Screenshot 2026-07-14 at 3.40.04 PM.png"
             st.session_state.pipeline_results_v3 = None
             st.rerun()
         if col_ex2.button("Hard (17 clues)", width="stretch", key="btn_hard"):
+            cleanup_session_files()
             st.session_state.selected_example_v3 = "test_images/sample_hard.jpg"
             st.session_state.current_file_v3 = "sample_hard.jpg"
             st.session_state.pipeline_results_v3 = None
             st.rerun()
         if col_ex3.button("Empty Grid (0 clues)", width="stretch", key="btn_empty"):
+            cleanup_session_files()
             st.session_state.selected_example_v3 = "test_images/sample.jpg"
             st.session_state.current_file_v3 = "sample.jpg"
             st.session_state.pipeline_results_v3 = None
@@ -430,8 +457,14 @@ else:
             
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         
-        # Landing uploader
-        uploaded_file = st.file_uploader("Or upload your own photograph:", type=["jpg", "jpeg", "png"], key="uploader_landing")
+        # Split layout input tabs
+        tab_upload, tab_camera = st.tabs(["📁 File Upload (Image/PDF)", "📷 Camera Capture"])
+        with tab_upload:
+            uploaded_file = st.file_uploader("Upload a Sudoku photo or PDF document:", type=["jpg", "jpeg", "png", "pdf"], key="uploader_landing")
+        with tab_camera:
+            camera_file = st.camera_input("Snap a photo of the Sudoku puzzle:", key="camera_landing")
+            if camera_file is not None:
+                uploaded_file = camera_file
         
     with col_hero_right:
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
@@ -446,23 +479,67 @@ else:
 # Process file uploads and selections
 image_path_to_use = None
 if uploaded_file is not None:
+    # Resolve file identifier name (or default to camera snap)
+    file_id = getattr(uploaded_file, "name", "camera_snap.jpg")
+    
     # Clear cache if a new file is uploaded
-    if st.session_state.current_file_v3 != uploaded_file.name:
-        st.session_state.current_file_v3 = uploaded_file.name
+    if st.session_state.current_file_v3 != file_id:
+        # Clean up old temporary file if it exists
+        if st.session_state.temp_image_path and os.path.exists(st.session_state.temp_image_path):
+            try:
+                os.remove(st.session_state.temp_image_path)
+            except:
+                pass
+                
+        # Generate a unique temp file path using NamedTemporaryFile
+        import tempfile
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+        temp_path = temp_file.name
+        temp_file.close()
+        
+        st.session_state.temp_image_path = temp_path
+        st.session_state.current_file_v3 = file_id
         st.session_state.selected_example_v3 = None
         st.session_state.pipeline_results_v3 = None
         
-    temp_path = "temp_input.jpg"
-    with open(temp_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
+        # Also clean up output directory for fresh run
+        import shutil
+        if os.path.exists(st.session_state.session_output_dir):
+            try:
+                shutil.rmtree(st.session_state.session_output_dir)
+            except:
+                pass
+        st.session_state.session_output_dir = tempfile.mkdtemp(prefix="sudoku_out_")
         
-    original_img = cv2.imread(temp_path)
-    image_path_to_use = temp_path
+    # If file is a PDF document
+    if file_id.lower().endswith(".pdf"):
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+            if doc.page_count < 1:
+                st.error("Error: The uploaded PDF contains no pages.")
+            else:
+                page = doc.load_page(0)
+                pix = page.get_pixmap(dpi=150)
+                img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+                if pix.n == 4:
+                    bgr_img = cv2.cvtColor(img_data, cv2.COLOR_RGBA2BGR)
+                else:
+                    bgr_img = cv2.cvtColor(img_data, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(st.session_state.temp_image_path, bgr_img)
+        except Exception as e:
+            st.error(f"Failed to render PDF: {e}")
+    else:
+        # Standard image file or camera snap
+        with open(st.session_state.temp_image_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+    original_img = cv2.imread(st.session_state.temp_image_path)
+    image_path_to_use = st.session_state.temp_image_path
 elif st.session_state.current_file_v3 is not None and st.session_state.selected_example_v3 is None:
-    temp_path = "temp_input.jpg"
-    if os.path.exists(temp_path):
-        original_img = cv2.imread(temp_path)
-        image_path_to_use = temp_path
+    if st.session_state.temp_image_path and os.path.exists(st.session_state.temp_image_path):
+        original_img = cv2.imread(st.session_state.temp_image_path)
+        image_path_to_use = st.session_state.temp_image_path
     else:
         original_img = None
 elif st.session_state.selected_example_v3 is not None:
@@ -499,13 +576,13 @@ if original_img is not None:
                 # 1. Grid detection
                 render_status(status_p1, "01", "grid detect", "running")
                 time.sleep(0.2)
-                cells = extract_cells(image_path_to_use)
+                cells = extract_cells(image_path_to_use, output_dir=st.session_state.session_output_dir)
                 render_status(status_p1, "01", "grid detect", "done")
                 
                 # 2. Digit recognition
                 render_status(status_p2, "02", "digit recognition", "running")
                 time.sleep(0.2)
-                grid, confidence_grid = build_grid()
+                grid, confidence_grid = build_grid(cells_dir=os.path.join(st.session_state.session_output_dir, "cells"))
                 render_status(status_p2, "02", "digit recognition", "done")
                 
                 # 3. Solve
@@ -533,10 +610,10 @@ if original_img is not None:
                         # 4. Overlay
                         render_status(status_p4, "04", "overlay", "running")
                         time.sleep(0.2)
-                        warped_img = cv2.imread("output/03_warped.jpg")
+                        warped_img = cv2.imread(os.path.join(st.session_state.session_output_dir, "03_warped.jpg"))
                         original_corners = detect_corners(original_img)
                         warped_overlay = draw_solution_on_warped(warped_img, grid, grid_copy)
-                        unwarp_overlay(original_img, warped_overlay, original_corners)
+                        unwarp_overlay(original_img, warped_overlay, original_corners, output_dir=st.session_state.session_output_dir)
                         render_status(status_p4, "04", "overlay", "done")
                         
                         # Cache all success outputs
@@ -580,7 +657,7 @@ if original_img is not None:
             confidence_grid = res["confidence_grid"]
             
             st.markdown("<h3>Intermediate Outputs</h3>", unsafe_allow_html=True)
-            st.image("output/02_contour.jpg", caption="Grid detected", width="stretch")
+            st.image(os.path.join(st.session_state.session_output_dir, "02_contour.jpg"), caption="Grid detected", width="stretch")
             
             # Digit recognition table / pretty print
             st.markdown("<h3>Recognized Digits</h3>", unsafe_allow_html=True)
@@ -618,8 +695,9 @@ if original_img is not None:
                 
                 st.markdown("<h3>Solved on Original Photo</h3>", unsafe_allow_html=True)
                 st.caption("Final solution warped back to original photo perspective")
-                if os.path.exists("output/04_solved_overlay.jpg"):
-                    st.image("output/04_solved_overlay.jpg", caption="Solved!", width="stretch")
+                solved_overlay_path = os.path.join(st.session_state.session_output_dir, "04_solved_overlay.jpg")
+                if os.path.exists(solved_overlay_path):
+                    st.image(solved_overlay_path, caption="Solved!", width="stretch")
         else:
             with col_left:
                 st.info("Upload an image to start pipeline solver playback.")
