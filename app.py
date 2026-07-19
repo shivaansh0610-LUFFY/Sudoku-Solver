@@ -424,9 +424,6 @@ if original_img is not None:
     
     with col_left:
         st.markdown("<h3 style='margin-top:0;'>Solver Playback</h3>", unsafe_allow_html=True)
-        show_heatmap = False
-        if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
-            show_heatmap = st.toggle("Show confidence heatmap", value=False)
         
     with col_right:
         st.markdown("<h3 style='margin-top:0;'>Pipeline Status</h3>", unsafe_allow_html=True)
@@ -556,10 +553,10 @@ if original_img is not None:
                     st.code(format_grid_str(grid))
                     st.caption("Digits recognized")
                 
-        # Draw playback and overlay in left column
         if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
             with col_left:
                 res = st.session_state.pipeline_results
+                show_heatmap = st.toggle("Show confidence heatmap", value=False)
                 # Playback animation
                 render_animated_grid(res["grid"], res["solved_grid"], res.get("confidence_grid"), show_heatmap)
                 
