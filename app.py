@@ -638,7 +638,7 @@ with st.expander("How does this work?"):
 st.markdown("""
 <hr style="border: 0; border-top: 1px solid #E0E0D8; margin-top: 3rem; margin-bottom: 1.5rem;">
 <div style="display: flex; justify-content: space-between; font-family: 'Space Grotesk', sans-serif; font-size: 0.75rem; color: #888888;">
-    <span>Attribution: Built by Shivaansh & Antigravity</span>
+    <span>Attribution: Built by Shivaansh</span>
     <span><a href="https://github.com/shivaansh0610-LUFFY/Sudoku-Solver" target="_blank" style="color: #888888; text-decoration: none; border-bottom: 1px solid #CCCCCC;">GitHub Repository</a></span>
 </div>
 """, unsafe_allow_html=True)
