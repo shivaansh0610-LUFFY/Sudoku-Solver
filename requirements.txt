@@ -1,6 +1,6 @@
 numpy
-opencv-python
-tensorflow
+opencv-python-headless
+tensorflow-cpu
 pillow
 pillow-heif
 streamlit
