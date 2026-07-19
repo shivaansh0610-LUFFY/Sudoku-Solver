@@ -53,11 +53,11 @@ st.markdown("""
     
     /* Subtle background grid-line watermark */
     .stApp {
-        background-color: #FAFAF8 !important;
+        background-color: #F2F0E8 !important;
         background-image: 
             linear-gradient(135deg, rgba(29, 158, 117, 0.02) 0%, rgba(24, 95, 165, 0.02) 100%),
-            linear-gradient(to right, rgba(17, 17, 17, 0.04) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(17, 17, 17, 0.04) 1px, transparent 1px) !important;
+            linear-gradient(to right, rgba(26, 26, 23, 0.025) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(26, 26, 23, 0.025) 1px, transparent 1px) !important;
         background-size: auto, 40px 40px, 40px 40px !important;
         background-attachment: fixed !important;
     }
@@ -90,7 +90,7 @@ st.markdown("""
         font-family: 'IBM Plex Mono', monospace;
         font-weight: 700;
         font-size: 1.2rem;
-        color: #111111;
+        color: #1A1A17;
     }
     .header-tag {
         font-family: 'Space Grotesk', sans-serif;
@@ -132,11 +132,11 @@ def render_status(placeholder, step_num, step_name, state):
         icon = "&nbsp;&nbsp;"
         border_color = "#E0E0D8"
         text_color = "#888888"
-        bg_color = "#FAFAF8"
+        bg_color = "#F2F0E8"
     elif state == "running":
         icon = "&bull;&nbsp;"
         border_color = "#185FA5" # Active running state (blue)
-        text_color = "#111111"
+        text_color = "#1A1A17"
         bg_color = "#F4F7FB"
     elif state == "done":
         icon = "&check;&nbsp;"
@@ -183,8 +183,8 @@ def render_animated_grid(original_grid, solved_grid, confidence_grid=None, show_
                 grid-template-columns: repeat(9, 1fr);
                 width: 360px;
                 height: 360px;
-                border: 2px solid #111111;
-                background-color: #FAFAF8;
+                border: 2px solid #1A1A17;
+                background-color: #F2F0E8;
             }}
             .cell {{
                 display: flex;
@@ -197,20 +197,20 @@ def render_animated_grid(original_grid, solved_grid, confidence_grid=None, show_
             }}
             /* 3x3 block borders */
             .cell-col-2, .cell-col-5 {{
-                border-right: 2px solid #111111;
+                border-right: 2px solid #1A1A17;
             }}
             .cell-col-8 {{
                 border-right: none;
             }}
             .cell-row-2, .cell-row-5 {{
-                border-bottom: 2px solid #111111;
+                border-bottom: 2px solid #1A1A17;
             }}
             .cell-row-8 {{
                 border-bottom: none;
             }}
             
             .original {{
-                color: #111111;
+                color: #1A1A17;
                 font-weight: 700;
             }}
             .solved {{
@@ -275,11 +275,11 @@ def generate_confidence_table(grid, conf_grid):
     """
     Generates a clean HTML table representing the recognized digits and their confidence scores.
     """
-    html = ['<table style="width:100%; border-collapse: collapse; font-family: \'IBM Plex Mono\', monospace; border: 2px solid #111; font-size: 0.85rem; text-align: center; background-color: #FAFAF8;">']
+    html = ['<table style="width:100%; border-collapse: collapse; font-family: \'IBM Plex Mono\', monospace; border: 2px solid #1A1A17; font-size: 0.85rem; text-align: center; background-color: #F2F0E8;">']
     for r in range(9):
         row_style = ""
         if r in [2, 5]:
-            row_style = 'style="border-bottom: 2px solid #111;"'
+            row_style = 'style="border-bottom: 2px solid #1A1A17;"'
         elif r == 8:
             row_style = 'style="border-bottom: none;"'
         else:
@@ -289,7 +289,7 @@ def generate_confidence_table(grid, conf_grid):
         for c in range(9):
             cell_style = "padding: 6px 2px;"
             if c in [2, 5]:
-                cell_style += " border-right: 2px solid #111;"
+                cell_style += " border-right: 2px solid #1A1A17;"
             elif c == 8:
                 cell_style += " border-right: none;"
             else:
@@ -307,7 +307,7 @@ def generate_confidence_table(grid, conf_grid):
                 elif conf < 0.75:
                     color = "#D9534F" # Low confidence - Warning Red
                 else:
-                    color = "#111111" # Medium confidence - Normal Text
+                    color = "#1A1A17" # Medium confidence - Normal Text
                 cell_content = f'<div style="font-weight:700; color:{color};">{val}</div><div style="font-size:0.65rem; color:#666;">{conf_pct}%</div>'
                 
             html.append(f'<td style="{cell_style}">{cell_content}</td>')
@@ -324,8 +324,8 @@ def render_stats_bar(digits_count, backtracks, solve_time_ms):
     
     def render_stat(col, value, label):
         col.markdown(f"""
-        <div style="border: 1px solid #E0E0D8; padding: 0.5rem; border-radius: 2px; text-align: center; background-color: #FAFAF8;">
-            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #111111;">{value}</div>
+        <div style="border: 1px solid #E0E0D8; padding: 0.5rem; border-radius: 2px; text-align: center; background-color: #F2F0E8;">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #1A1A17;">{value}</div>
             <div style="font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; color: #666; text-transform: uppercase; margin-top: 0.15rem; letter-spacing: 0.05em;">{label}</div>
         </div>
         """, unsafe_allow_html=True)
