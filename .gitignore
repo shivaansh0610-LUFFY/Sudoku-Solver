@@ -3,3 +3,7 @@ __pycache__/
 output/
 synthetic_digits/
 .DS_Store
+.keras/
+.matplotlib/
+temp_input.jpg
+
