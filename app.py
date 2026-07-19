@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import copy
 import time
+import streamlit.components.v1 as components
 
 from grid_extractor import extract_cells
 from digit_recognizer import build_grid
@@ -88,6 +89,154 @@ def render_status(placeholder, step_num, step_name, state):
     </div>
     """, unsafe_allow_html=True)
 
+def render_animated_grid(original_grid, solved_grid):
+    """
+    Renders a 9x9 Sudoku grid using HTML/CSS inside an iframe component.
+    Solved cells are revealed in a diagonal wave animation.
+    """
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background-color: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-family: 'IBM Plex Mono', monospace;
+            }}
+            .sudoku-grid {{
+                display: grid;
+                grid-template-columns: repeat(9, 1fr);
+                width: 360px;
+                height: 360px;
+                border: 2px solid #111111;
+                background-color: #FAFAF8;
+            }}
+            .cell {{
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-size: 1.35rem;
+                border-right: 1px solid #E0E0D8;
+                border-bottom: 1px solid #E0E0D8;
+                box-sizing: border-box;
+            }}
+            /* 3x3 block borders */
+            .cell-col-2, .cell-col-5 {{
+                border-right: 2px solid #111111;
+            }}
+            .cell-col-8 {{
+                border-right: none;
+            }}
+            .cell-row-2, .cell-row-5 {{
+                border-bottom: 2px solid #111111;
+            }}
+            .cell-row-8 {{
+                border-bottom: none;
+            }}
+            
+            .original {{
+                color: #111111;
+                font-weight: 700;
+            }}
+            .solved {{
+                color: #1D9E75;
+                font-weight: 700;
+                opacity: 0;
+                transform: scale(1.6);
+                transition: opacity 300ms cubic-bezier(0.1, 0.8, 0.3, 1), transform 300ms cubic-bezier(0.1, 0.8, 0.3, 1);
+            }}
+            .solved.reveal {{
+                opacity: 1;
+                transform: scale(1);
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="sudoku-grid">
+    """
+    
+    for r in range(9):
+        for c in range(9):
+            orig_val = original_grid[r][c]
+            solved_val = solved_grid[r][c]
+            
+            cell_classes = f"cell cell-row-{r} cell-col-{c}"
+            if orig_val != 0:
+                html_content += f'<div class="{cell_classes} original">{orig_val}</div>\n'
+            else:
+                diag = r + c
+                html_content += f'<div class="{cell_classes} solved" data-diag="{diag}">{solved_val}</div>\n'
+                
+    html_content += f"""
+        </div>
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {{
+                const cells = document.querySelectorAll(".solved");
+                cells.forEach(cell => {{
+                    const diag = parseInt(cell.getAttribute("data-diag"));
+                    setTimeout(() => {{
+                        cell.classList.add("reveal");
+                    }}, diag * 90);
+                }});
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    components.html(html_content, height=380, width=380)
+
+def generate_confidence_table(grid, conf_grid):
+    """
+    Generates a clean HTML table representing the recognized digits and their confidence scores.
+    """
+    html = ['<table style="width:100%; border-collapse: collapse; font-family: \'IBM Plex Mono\', monospace; border: 2px solid #111; font-size: 0.85rem; text-align: center; background-color: #FAFAF8;">']
+    for r in range(9):
+        row_style = ""
+        if r in [2, 5]:
+            row_style = 'style="border-bottom: 2px solid #111;"'
+        elif r == 8:
+            row_style = 'style="border-bottom: none;"'
+        else:
+            row_style = 'style="border-bottom: 1px solid #E0E0D8;"'
+            
+        html.append(f'<tr {row_style}>')
+        for c in range(9):
+            cell_style = "padding: 6px 2px;"
+            if c in [2, 5]:
+                cell_style += " border-right: 2px solid #111;"
+            elif c == 8:
+                cell_style += " border-right: none;"
+            else:
+                cell_style += " border-right: 1px solid #E0E0D8;"
+                
+            val = grid[r][c]
+            conf = conf_grid[r][c]
+            
+            if val == 0:
+                cell_content = "."
+            else:
+                conf_pct = int(conf * 100)
+                if conf > 0.90:
+                    color = "#1D9E75"
+                elif conf < 0.75:
+                    color = "#D9534F"
+                else:
+                    color = "#111111"
+                cell_content = f'<div style="font-weight:700; color:{color};">{val}</div><div style="font-size:0.65rem; color:#666;">{conf_pct}%</div>'
+                
+            html.append(f'<td style="{cell_style}">{cell_content}</td>')
+        html.append('</tr>')
+    html.append('</table>')
+    return "\n".join(html)
+
 # 1. Header Bar
 st.markdown("""
 <div class="header-bar">
@@ -121,10 +270,6 @@ if uploaded_file is not None:
         
         with col_left:
             st.markdown("<h3 style='margin-top:0;'>Solver Playback</h3>", unsafe_allow_html=True)
-            st.info("Grid will be rendered here.")
-            
-            st.markdown("<h3>Solved on Original Photo</h3>", unsafe_allow_html=True)
-            st.caption("Final solution warped back to original photo perspective")
             
         with col_right:
             st.markdown("<h3 style='margin-top:0;'>Pipeline Status</h3>", unsafe_allow_html=True)
@@ -182,6 +327,7 @@ if uploaded_file is not None:
                             st.session_state.pipeline_results = {
                                 "success": True,
                                 "grid": grid,
+                                "confidence_grid": confidence_grid,
                                 "solved_grid": grid_copy,
                                 "overlay_saved": True
                             }
@@ -201,10 +347,44 @@ if uploaded_file is not None:
                     render_status(status_p3, "03", "solve", "error")
                     
             if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
+                res = st.session_state.pipeline_results
+                grid = res["grid"]
+                confidence_grid = res["confidence_grid"]
+                
                 st.markdown("<h3>Intermediate Outputs</h3>", unsafe_allow_html=True)
                 st.image("output/02_contour.jpg", caption="Grid detected", use_container_width=True)
                 
+                st.markdown("<h3>Recognized Digits</h3>", unsafe_allow_html=True)
+                show_conf = st.toggle("Show confidence scores", value=False)
+                
+                if show_conf:
+                    html_table = generate_confidence_table(grid, confidence_grid)
+                    st.markdown(html_table, unsafe_allow_html=True)
+                    st.caption("Digits recognized with confidence scores")
+                else:
+                    def format_grid_str(g):
+                        lines = []
+                        for r in range(9):
+                            if r % 3 == 0 and r != 0:
+                                lines.append("-" * 21)
+                            row_str = ""
+                            for c in range(9):
+                                if c % 3 == 0 and c != 0:
+                                    row_str += "| "
+                                val = g[r][c]
+                                row_str += f"{val if val != 0 else '.'} "
+                            lines.append(row_str.strip())
+                        return "\n".join(lines)
+                    
+                    st.code(format_grid_str(grid))
+                    st.caption("Digits recognized")
+                
         if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
             with col_left:
+                res = st.session_state.pipeline_results
+                render_animated_grid(res["grid"], res["solved_grid"])
+                
+                st.markdown("<h3>Solved on Original Photo</h3>", unsafe_allow_html=True)
+                st.caption("Final solution warped back to original photo perspective")
                 if os.path.exists("output/04_solved_overlay.jpg"):
                     st.image("output/04_solved_overlay.jpg", caption="Solved!", use_container_width=True)
