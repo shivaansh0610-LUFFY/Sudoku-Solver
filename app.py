@@ -497,61 +497,61 @@ if original_img is not None:
             except Exception as e:
                 st.error(f"Error executing pipeline: {e}")
                 st.session_state.pipeline_results = {"success": False, "error": str(e)}
-            else:
-                # If cached, render status checklist based on stored result
-                res = st.session_state.pipeline_results
-                if res.get("success"):
-                    render_status(status_p1, "01", "grid detect", "done")
-                    render_status(status_p2, "02", "digit recognition", "done")
-                    render_status(status_p3, "03", "solve", "done")
-                    render_status(status_p4, "04", "overlay", "done")
-                else:
-                    render_status(status_p1, "01", "grid detect", "done")
-                    render_status(status_p2, "02", "digit recognition", "done")
-                    render_status(status_p3, "03", "solve", "error")
-                    st.error(f"Cached pipeline error: {res.get('error')}")
+        
+        # If cached, render status checklist based on stored result
+        res = st.session_state.pipeline_results
+        if res.get("success"):
+            render_status(status_p1, "01", "grid detect", "done")
+            render_status(status_p2, "02", "digit recognition", "done")
+            render_status(status_p3, "03", "solve", "done")
+            render_status(status_p4, "04", "overlay", "done")
+        else:
+            render_status(status_p1, "01", "grid detect", "done")
+            render_status(status_p2, "02", "digit recognition", "done")
+            render_status(status_p3, "03", "solve", "error")
+            st.error(f"Cached pipeline error: {res.get('error')}")
             
-            # Show stats bar
-            if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
-                res = st.session_state.pipeline_results
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-                render_stats_bar(res["digits_count"], res["backtracks"], res["solve_time_ms"])
+        # Show stats bar
+        if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
+            res = st.session_state.pipeline_results
+            st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+            render_stats_bar(res["digits_count"], res["backtracks"], res["solve_time_ms"])
+            
+        # Show additional pipeline components in right column
+        if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
+            res = st.session_state.pipeline_results
+            grid = res["grid"]
+            confidence_grid = res["confidence_grid"]
+            
+            st.markdown("<h3>Intermediate Outputs</h3>", unsafe_allow_html=True)
+            st.image("output/02_contour.jpg", caption="Grid detected", width="stretch")
+            
+            # Digit recognition table / pretty print
+            st.markdown("<h3>Recognized Digits</h3>", unsafe_allow_html=True)
+            show_conf = st.toggle("Show confidence scores", value=False)
+            
+            if show_conf:
+                html_table = generate_confidence_table(grid, confidence_grid)
+                st.markdown(html_table, unsafe_allow_html=True)
+                st.caption("Digits recognized with confidence scores")
+            else:
+                # Pretty printed string representation
+                def format_grid_str(g):
+                    lines = []
+                    for r in range(9):
+                        if r % 3 == 0 and r != 0:
+                            lines.append("-" * 21)
+                        row_str = ""
+                        for c in range(9):
+                            if c % 3 == 0 and c != 0:
+                                row_str += "| "
+                            val = g[r][c]
+                            row_str += f"{val if val != 0 else '.'} "
+                        lines.append(row_str.strip())
+                    return "\n".join(lines)
                 
-            # Show additional pipeline components in right column
-            if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
-                res = st.session_state.pipeline_results
-                grid = res["grid"]
-                confidence_grid = res["confidence_grid"]
-                
-                st.markdown("<h3>Intermediate Outputs</h3>", unsafe_allow_html=True)
-                st.image("output/02_contour.jpg", caption="Grid detected", width="stretch")
-                
-                # Digit recognition table / pretty print
-                st.markdown("<h3>Recognized Digits</h3>", unsafe_allow_html=True)
-                show_conf = st.toggle("Show confidence scores", value=False)
-                
-                if show_conf:
-                    html_table = generate_confidence_table(grid, confidence_grid)
-                    st.markdown(html_table, unsafe_allow_html=True)
-                    st.caption("Digits recognized with confidence scores")
-                else:
-                    # Pretty printed string representation
-                    def format_grid_str(g):
-                        lines = []
-                        for r in range(9):
-                            if r % 3 == 0 and r != 0:
-                                lines.append("-" * 21)
-                            row_str = ""
-                            for c in range(9):
-                                if c % 3 == 0 and c != 0:
-                                    row_str += "| "
-                                val = g[r][c]
-                                row_str += f"{val if val != 0 else '.'} "
-                            lines.append(row_str.strip())
-                        return "\n".join(lines)
-                    
-                    st.code(format_grid_str(grid))
-                    st.caption("Digits recognized")
+                st.code(format_grid_str(grid))
+                st.caption("Digits recognized")
                 
         if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
             with col_left:
