@@ -36,7 +36,7 @@ def main():
         
         # Run digit recognition
         print("\nRunning digit recognition on extracted cells...")
-        grid = build_grid()
+        grid, confidence_grid = build_grid()
         
         # Print grid
         print("\nDetected Sudoku Grid:")
@@ -51,13 +51,38 @@ def main():
         # Solve a deep copy of the grid
         grid_copy = copy.deepcopy(grid)
         start_time = time.time()
-        solved = solve(grid_copy)
+        solved, backtracks = solve(grid_copy)
         end_time = time.time()
         
         if solved:
             print("Solved Sudoku Grid:")
             pretty_print_grid(grid_copy)
-            print(f"\nSolving took {(end_time - start_time) * 1000:.2f} ms")
+            print(f"\nSolving took {(end_time - start_time) * 1000:.2f} ms with {backtracks} backtracks")
+            
+            # Day 4: Overlay solved digits back onto the original photo
+            print("\nGenerating solution overlay...")
+            import cv2
+            from overlay import detect_corners, draw_solution_on_warped, unwarp_overlay
+            
+            original_img = cv2.imread(image_path)
+            if original_img is None:
+                raise ValueError(f"Could not load original image at path: {image_path}")
+                
+            warped_img_path = os.path.join("output", "03_warped.jpg")
+            warped_img = cv2.imread(warped_img_path)
+            if warped_img is None:
+                raise ValueError(f"Could not load warped image at path: {warped_img_path}")
+                
+            # Detect original corners
+            original_corners = detect_corners(original_img)
+            
+            # Draw solved digits on warped image
+            warped_overlay = draw_solution_on_warped(warped_img, grid, grid_copy)
+            
+            # Inverse perspective warp back to original image
+            unwarp_overlay(original_img, warped_overlay, original_corners)
+            
+            print("Confirmation: Saved solved overlay to output/04_solved_overlay.jpg")
         else:
             print("No solution exists for this Sudoku grid.")
         
