@@ -359,18 +359,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 2. Landing Hero Section
-st.markdown("""
-<div style="margin-bottom: 2rem;">
-    <p style="font-family: 'Space Grotesk', sans-serif; font-size: 1.05rem; color: #333333; line-height: 1.5; margin: 0 0 0.5rem 0;">
-        Photo in, solved grid out. This pipeline extracts the board using OpenCV perspective warps, recognizes cells with a custom CNN classifier, and solves the puzzle using a backtracking algorithm.
-    </p>
-    <p style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: #666666; margin: 0; letter-spacing: 0.05em;">
-        OPENCV &middot; TENSORFLOW/KERAS &middot; BACKTRACKING &middot; STREAMLIT
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
 # Initialize Session State
 if "current_file_v3" not in st.session_state:
     st.session_state.current_file_v3 = None
@@ -379,25 +367,78 @@ if "pipeline_results_v3" not in st.session_state:
 if "selected_example_v3" not in st.session_state:
     st.session_state.selected_example_v3 = None
 
-# Example selection row
-st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.9rem; font-weight: 500; margin-bottom: 0.4rem;'>Try a sample image:</p>", unsafe_allow_html=True)
-col_ex1, col_ex2, col_ex3 = st.columns(3)
-if col_ex1.button("Standard (30 clues)", width="stretch"):
-    st.session_state.selected_example_v3 = "test_images/Screenshot 2026-07-14 at 3.40.04 PM.png"
-    st.session_state.current_file_v3 = "Screenshot 2026-07-14 at 3.40.04 PM.png"
-    st.session_state.pipeline_results_v3 = None
-if col_ex2.button("Hard (17 clues)", width="stretch"):
-    st.session_state.selected_example_v3 = "test_images/sample_hard.jpg"
-    st.session_state.current_file_v3 = "sample_hard.jpg"
-    st.session_state.pipeline_results_v3 = None
-if col_ex3.button("Empty Grid (0 clues)", width="stretch"):
-    st.session_state.selected_example_v3 = "test_images/sample.jpg"
-    st.session_state.current_file_v3 = "sample.jpg"
-    st.session_state.pipeline_results_v3 = None
+# Determine if we are in the landing state or solving state
+is_solving = (st.session_state.selected_example_v3 is not None) or (st.session_state.current_file_v3 is not None)
 
-# File uploader
-uploaded_file = st.file_uploader("Upload a Sudoku Image", type=["jpg", "jpeg", "png"])
+uploaded_file = None
 
+if is_solving:
+    # 2. Workspace controls header (Back button + uploader in columns)
+    col_ctrl1, col_ctrl2 = st.columns([1, 2.5])
+    with col_ctrl1:
+        st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+        if st.button("← Back to Landing Page", width="stretch"):
+            st.session_state.selected_example_v3 = None
+            st.session_state.current_file_v3 = None
+            st.session_state.pipeline_results_v3 = None
+            st.rerun()
+    with col_ctrl2:
+        uploaded_file = st.file_uploader("Upload a new image to replace current", type=["jpg", "jpeg", "png"], key="uploader_workspace")
+else:
+    # 2. Landing split layout (Dribbble Granger style)
+    col_hero_left, col_hero_right = st.columns([1, 1.25], gap="large")
+    
+    with col_hero_left:
+        # Giant modern typography headline
+        st.markdown("""
+        <div style="margin-top: 1rem; margin-bottom: 1.5rem;">
+            <h1 style="font-family: 'Space Grotesk', sans-serif; font-size: 4.5rem; font-weight: 700; color: #1A1A17; line-height: 0.85; margin: 0 0 1.2rem 0; letter-spacing: -0.04em;">
+                SUDOKU<br><span style="color: #1D9E75;">SOLVER</span>
+            </h1>
+            <p style="font-family: 'Space Grotesk', sans-serif; font-size: 1.15rem; color: #4A4A45; line-height: 1.5; margin: 0 0 1.5rem 0;">
+                Photo in, solution out. Feed in any printed sudoku board photograph to dynamically unwarp cells, classify digits using a CNN model, and run depth-first backtracking search.
+            </p>
+            <p style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: #666660; margin: 0 0 2rem 0; letter-spacing: 0.05em;">
+                OPENCV &middot; TENSORFLOW &middot; DEEP_LEARNING
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Try-it examples row
+        st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.9rem; font-weight: 700; margin-bottom: 0.5rem;'>Try a sample image:</p>", unsafe_allow_html=True)
+        col_ex1, col_ex2, col_ex3 = st.columns(3)
+        if col_ex1.button("Standard (30 clues)", width="stretch", key="btn_std"):
+            st.session_state.selected_example_v3 = "test_images/Screenshot 2026-07-14 at 3.40.04 PM.png"
+            st.session_state.current_file_v3 = "Screenshot 2026-07-14 at 3.40.04 PM.png"
+            st.session_state.pipeline_results_v3 = None
+            st.rerun()
+        if col_ex2.button("Hard (17 clues)", width="stretch", key="btn_hard"):
+            st.session_state.selected_example_v3 = "test_images/sample_hard.jpg"
+            st.session_state.current_file_v3 = "sample_hard.jpg"
+            st.session_state.pipeline_results_v3 = None
+            st.rerun()
+        if col_ex3.button("Empty Grid (0 clues)", width="stretch", key="btn_empty"):
+            st.session_state.selected_example_v3 = "test_images/sample.jpg"
+            st.session_state.current_file_v3 = "sample.jpg"
+            st.session_state.pipeline_results_v3 = None
+            st.rerun()
+            
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        
+        # Landing uploader
+        uploaded_file = st.file_uploader("Or upload your own photograph:", type=["jpg", "jpeg", "png"], key="uploader_landing")
+        
+    with col_hero_right:
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+        st.image("assets/sudoku_hero.jpg", width="stretch")
+        st.markdown("""
+        <div style="border-left: 2px solid #1D9E75; padding-left: 0.8rem; margin-top: 1.2rem; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; color: #5A5A55; line-height: 1.4;">
+            <strong>Autonomous Pipeline Demonstration</strong><br>
+            Analyzes raw board photographs, unwarps geometry, and solves backtracking states in milliseconds.
+        </div>
+        """, unsafe_allow_html=True)
+
+# Process file uploads and selections
 image_path_to_use = None
 if uploaded_file is not None:
     # Clear cache if a new file is uploaded
