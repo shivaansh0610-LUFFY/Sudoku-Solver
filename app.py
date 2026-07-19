@@ -372,28 +372,28 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Initialize Session State
-if "current_file" not in st.session_state:
-    st.session_state.current_file = None
-if "pipeline_results" not in st.session_state:
-    st.session_state.pipeline_results = None
-if "selected_example" not in st.session_state:
-    st.session_state.selected_example = None
+if "current_file_v3" not in st.session_state:
+    st.session_state.current_file_v3 = None
+if "pipeline_results_v3" not in st.session_state:
+    st.session_state.pipeline_results_v3 = None
+if "selected_example_v3" not in st.session_state:
+    st.session_state.selected_example_v3 = None
 
 # Example selection row
 st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.9rem; font-weight: 500; margin-bottom: 0.4rem;'>Try a sample image:</p>", unsafe_allow_html=True)
 col_ex1, col_ex2, col_ex3 = st.columns(3)
 if col_ex1.button("Standard (30 clues)", width="stretch"):
-    st.session_state.selected_example = "test_images/Screenshot 2026-07-14 at 3.40.04 PM.png"
-    st.session_state.current_file = "Screenshot 2026-07-14 at 3.40.04 PM.png"
-    st.session_state.pipeline_results = None
+    st.session_state.selected_example_v3 = "test_images/Screenshot 2026-07-14 at 3.40.04 PM.png"
+    st.session_state.current_file_v3 = "Screenshot 2026-07-14 at 3.40.04 PM.png"
+    st.session_state.pipeline_results_v3 = None
 if col_ex2.button("Hard (17 clues)", width="stretch"):
-    st.session_state.selected_example = "test_images/sample_hard.jpg"
-    st.session_state.current_file = "sample_hard.jpg"
-    st.session_state.pipeline_results = None
+    st.session_state.selected_example_v3 = "test_images/sample_hard.jpg"
+    st.session_state.current_file_v3 = "sample_hard.jpg"
+    st.session_state.pipeline_results_v3 = None
 if col_ex3.button("Empty Grid (0 clues)", width="stretch"):
-    st.session_state.selected_example = "test_images/sample.jpg"
-    st.session_state.current_file = "sample.jpg"
-    st.session_state.pipeline_results = None
+    st.session_state.selected_example_v3 = "test_images/sample.jpg"
+    st.session_state.current_file_v3 = "sample.jpg"
+    st.session_state.pipeline_results_v3 = None
 
 # File uploader
 uploaded_file = st.file_uploader("Upload a Sudoku Image", type=["jpg", "jpeg", "png"])
@@ -401,10 +401,10 @@ uploaded_file = st.file_uploader("Upload a Sudoku Image", type=["jpg", "jpeg", "
 image_path_to_use = None
 if uploaded_file is not None:
     # Clear cache if a new file is uploaded
-    if st.session_state.current_file != uploaded_file.name:
-        st.session_state.current_file = uploaded_file.name
-        st.session_state.selected_example = None
-        st.session_state.pipeline_results = None
+    if st.session_state.current_file_v3 != uploaded_file.name:
+        st.session_state.current_file_v3 = uploaded_file.name
+        st.session_state.selected_example_v3 = None
+        st.session_state.pipeline_results_v3 = None
         
     temp_path = "temp_input.jpg"
     with open(temp_path, "wb") as f:
@@ -412,11 +412,14 @@ if uploaded_file is not None:
         
     original_img = cv2.imread(temp_path)
     image_path_to_use = temp_path
-elif st.session_state.selected_example is not None:
-    original_img = cv2.imread(st.session_state.selected_example)
-    image_path_to_use = st.session_state.selected_example
+elif st.session_state.selected_example_v3 is not None:
+    original_img = cv2.imread(st.session_state.selected_example_v3)
+    image_path_to_use = st.session_state.selected_example_v3
 else:
     original_img = None
+
+if image_path_to_use is not None and original_img is None:
+    st.error(f"Error: Failed to read image at path '{image_path_to_use}'")
 
 if original_img is not None:
     # Columns layout
@@ -433,7 +436,7 @@ if original_img is not None:
         status_p4 = st.empty()
         
         # If not in cache, run the pipeline step-by-step
-        if st.session_state.pipeline_results is None:
+        if st.session_state.pipeline_results_v3 is None:
             render_status(status_p1, "01", "grid detect", "pending")
             render_status(status_p2, "02", "digit recognition", "pending")
             render_status(status_p3, "03", "solve", "pending")
@@ -459,7 +462,7 @@ if original_img is not None:
                 if not is_valid_puzzle(grid):
                     render_status(status_p3, "03", "solve", "error")
                     st.error("Recognized grid is contradictory — check digit recognition output above for misread cells")
-                    st.session_state.pipeline_results = {"success": False, "error": "Contradictory grid"}
+                    st.session_state.pipeline_results_v3 = {"success": False, "error": "Contradictory grid"}
                 else:
                     grid_copy = copy.deepcopy(grid)
                     start_time = time.time()
@@ -470,7 +473,7 @@ if original_img is not None:
                     if not solved:
                         render_status(status_p3, "03", "solve", "error")
                         st.error("No solution exists for this Sudoku grid.")
-                        st.session_state.pipeline_results = {"success": False, "error": "No solution"}
+                        st.session_state.pipeline_results_v3 = {"success": False, "error": "No solution"}
                     else:
                         render_status(status_p3, "03", "solve", "done")
                         
@@ -484,7 +487,7 @@ if original_img is not None:
                         render_status(status_p4, "04", "overlay", "done")
                         
                         # Cache all success outputs
-                        st.session_state.pipeline_results = {
+                        st.session_state.pipeline_results_v3 = {
                             "success": True,
                             "grid": grid,
                             "confidence_grid": confidence_grid,
@@ -496,10 +499,10 @@ if original_img is not None:
                         }
             except Exception as e:
                 st.error(f"Error executing pipeline: {e}")
-                st.session_state.pipeline_results = {"success": False, "error": str(e)}
+                st.session_state.pipeline_results_v3 = {"success": False, "error": str(e)}
         
         # If cached, render status checklist based on stored result
-        res = st.session_state.pipeline_results
+        res = st.session_state.pipeline_results_v3
         if res.get("success"):
             render_status(status_p1, "01", "grid detect", "done")
             render_status(status_p2, "02", "digit recognition", "done")
@@ -512,14 +515,14 @@ if original_img is not None:
             st.error(f"Cached pipeline error: {res.get('error')}")
             
         # Show stats bar
-        if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
-            res = st.session_state.pipeline_results
+        if st.session_state.pipeline_results_v3 and st.session_state.pipeline_results_v3.get("success"):
+            res = st.session_state.pipeline_results_v3
             st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
             render_stats_bar(res["digits_count"], res["backtracks"], res["solve_time_ms"])
             
         # Show additional pipeline components in right column
-        if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
-            res = st.session_state.pipeline_results
+        if st.session_state.pipeline_results_v3 and st.session_state.pipeline_results_v3.get("success"):
+            res = st.session_state.pipeline_results_v3
             grid = res["grid"]
             confidence_grid = res["confidence_grid"]
             
@@ -553,9 +556,9 @@ if original_img is not None:
                 st.code(format_grid_str(grid))
                 st.caption("Digits recognized")
                 
-        if st.session_state.pipeline_results and st.session_state.pipeline_results.get("success"):
+        if st.session_state.pipeline_results_v3 and st.session_state.pipeline_results_v3.get("success"):
             with col_left:
-                res = st.session_state.pipeline_results
+                res = st.session_state.pipeline_results_v3
                 show_heatmap = st.toggle("Show confidence heatmap", value=False)
                 # Playback animation
                 render_animated_grid(res["grid"], res["solved_grid"], res.get("confidence_grid"), show_heatmap)
