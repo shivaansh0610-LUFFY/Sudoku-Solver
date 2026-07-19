@@ -355,10 +355,11 @@ def is_cell_blank(cell_image) -> bool:
     # If ink pixel ratio is below 2%, return True (blank)
     return ink_ratio < 0.02
 
-def predict_digit(cell_image, model) -> int:
+def predict_digit(cell_image, model) -> tuple:
     """
     Preprocesses the cell image to match the synthetic training dataset format.
     Clears borders (20px), crops center 80%, binarizes using Otsu, cleans components, centers and resizes.
+    Returns a tuple (predicted_digit, confidence_score).
     """
     # 1. Convert to grayscale if not already
     if len(cell_image.shape) == 3:
@@ -391,14 +392,17 @@ def predict_digit(cell_image, model) -> int:
     input_tensor = np.expand_dims(normalized, axis=(0, -1))
     prediction = model.predict(input_tensor, verbose=0)
     pred_class = np.argmax(prediction[0])
+    confidence = float(prediction[0][pred_class])
     
     # Class 0-8 maps to digit 1-9
-    return int(pred_class + 1)
+    return int(pred_class + 1), confidence
 
 def build_grid(cells_dir="output/cells", model_path="model/digit_classifier.h5"):
     """
     Loads the model and iterates through the 81 cell images.
-    Returns a 9x9 list of lists representing the Sudoku board.
+    Returns a tuple (grid, confidence_grid) where:
+    - grid is a 9x9 list of ints representing the Sudoku board
+    - confidence_grid is a 9x9 list of floats representing prediction confidence
     """
     if not os.path.exists(model_path):
         raise FileNotFoundError(
@@ -412,8 +416,10 @@ def build_grid(cells_dir="output/cells", model_path="model/digit_classifier.h5")
     model = load_model(model_path)
 
     grid = []
+    confidence_grid = []
     for r in range(9):
         row_list = []
+        conf_row_list = []
         for c in range(9):
             cell_filename = os.path.join(cells_dir, f"cell_r{r}_c{c}.jpg")
             if not os.path.exists(cell_filename):
@@ -425,12 +431,15 @@ def build_grid(cells_dir="output/cells", model_path="model/digit_classifier.h5")
             
             if is_cell_blank(cell_image):
                 row_list.append(0)
+                conf_row_list.append(1.0) # 100% confidence for blank cells
             else:
-                digit = predict_digit(cell_image, model)
+                digit, conf = predict_digit(cell_image, model)
                 row_list.append(digit)
+                conf_row_list.append(conf)
         grid.append(row_list)
+        confidence_grid.append(conf_row_list)
         
-    return grid
+    return grid, confidence_grid
 
 if __name__ == "__main__":
     import argparse
