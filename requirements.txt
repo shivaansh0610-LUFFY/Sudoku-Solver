@@ -3,3 +3,4 @@ opencv-python
 tensorflow
 pillow
 pillow-heif
+streamlit
